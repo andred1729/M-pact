@@ -30,7 +30,7 @@ A minimalist CesiumJS setup that renders an interactive 3D globe focused on a sc
 
 ## Meteor configuration
 
-Tweak the `METEOR` settings inside `index.html` to change the launch/impact coordinates, flight duration, or swap in a glTF via `modelUri`. Update `METEOR.targetCity` to point at one of the entries in the `CITIES` lookup (currently only Chicago) and `METEOR.asteroidId` to pull from the `ASTEROIDS` catalog (joule yield + size). Click `Launch Meteor` — the script drives Cesium’s clock, samples the trajectory, spawns a glowing trail, and, once the run completes, stamps a red impact ring sized off the asteroid energy so it stays visible for analysis.
+Tweak the `METEOR` settings inside `index.html` to change the launch/impact coordinates, flight duration, or swap in a glTF via `modelUri`. Update `METEOR.targetCity` to point at one of the entries in the `CITIES` lookup (currently only Chicago) and `METEOR.asteroidId` to pull from the `ASTEROIDS` catalog (joule yield + size). Click `Launch Meteor` — the script drives Cesium’s clock, samples the trajectory, leaves the glowing trail in-place for post-run inspection, and, once the run completes, animates five expanding red impact rings sized off the asteroid energy so the zone stays visible for analysis.
 
 The globe is intentionally sparse — only the meteor primitives and the computed impact ring appear — making it easy to layer additional meteor dynamics without the visual noise of extra demo geometry.
 

@@ -173,9 +173,9 @@
         const JOULE_RADIUS_SCALE = 1e-9;
 
         const METEOR = {
-          startLon: -99.0,
-          startLat: 52.0,
-          startAlt: 120000.0,
+          startLon: -120.,
+          startLat: 80.,
+          startAlt: 900000.0,
           // Select target city (currently only 'chicago')
           targetCity: "chicago",
           // Select asteroid profile
@@ -183,7 +183,7 @@
           endLon: null,
           endLat: null,
           endAlt: 1000.0,
-          flightSeconds: 12,
+          flightSeconds: 20,
           trailSeconds: 20,
           useModel: false,
           modelUri: "/models/asteroid.glb",
@@ -223,7 +223,10 @@
 
         const launchButton = document.getElementById("launchMeteor");
         let meteorActive = false;
-        let impactCircleEntity = null;
+        let impactCircleEntities = [];
+        let impactCircleTimers = [];
+        let activeTrail = null;
+        let trailPolylineEntity = null;
 
         function startMeteorRun() {
           if (!launchButton) {
@@ -234,9 +237,24 @@
             return;
           }
 
-          if (impactCircleEntity) {
-            viewer.entities.remove(impactCircleEntity);
-            impactCircleEntity = null;
+          if (impactCircleTimers.length) {
+            impactCircleTimers.forEach((timerId) => window.clearTimeout(timerId));
+            impactCircleTimers = [];
+          }
+
+          if (impactCircleEntities.length) {
+            impactCircleEntities.forEach((entity) => viewer.entities.remove(entity));
+            impactCircleEntities = [];
+          }
+
+          if (activeTrail) {
+            viewer.scene.primitives.remove(activeTrail);
+            activeTrail = null;
+          }
+
+          if (trailPolylineEntity) {
+            viewer.entities.remove(trailPolylineEntity);
+            trailPolylineEntity = null;
           }
 
           const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
@@ -283,6 +301,15 @@
             )
           );
 
+          const trailPositionsDegrees = [
+            METEOR.startLon,
+            METEOR.startLat,
+            METEOR.startAlt,
+            METEOR.endLon,
+            METEOR.endLat,
+            METEOR.endAlt,
+          ];
+
           const baseEntity = {
             position: positionProperty,
             orientation: new Cesium.VelocityOrientationProperty(positionProperty),
@@ -319,26 +346,21 @@
                 }
           );
 
+          const trailDuration = METEOR.flightSeconds + 20;
+
           const trail = new Cesium.ParticleSystem({
             image: makeParticleImage(32),
             startScale: 1.0,
             endScale: 0.5,
             emissionRate: 140,
-            particleLife: 0.6,
+            particleLife: trailDuration,
             speed: 60.0,
-            lifetime: METEOR.flightSeconds + 5,
+            lifetime: trailDuration,
             emitter: new Cesium.ConeEmitter(Cesium.Math.toRadians(10)),
             sizeInMeters: true,
           });
           viewer.scene.primitives.add(trail);
-
-          let trailRemoved = false;
-          const removeTrail = () => {
-            if (!trailRemoved) {
-              viewer.scene.primitives.remove(trail);
-              trailRemoved = true;
-            }
-          };
+          activeTrail = trail;
 
           let burstTimeoutId = null;
           let burstPrimitive = null;
@@ -350,7 +372,6 @@
               burstTimeoutId = null;
             }
             viewer.scene.preRender.removeEventListener(preRenderCallback);
-            removeTrail();
             if (burstPrimitive) {
               viewer.scene.primitives.remove(burstPrimitive);
               burstPrimitive = null;
@@ -395,7 +416,6 @@
             if (reachedEnd || lowAltitude) {
               viewer.scene.preRender.removeEventListener(preRenderCallback);
 
-              removeTrail();
               meteorEntity.show = false;
 
               viewer.clock.currentTime = stopTime.clone();
@@ -426,23 +446,48 @@
               });
               viewer.scene.primitives.add(burstPrimitive);
 
-              if (!impactCircleEntity) {
-                impactCircleEntity = viewer.entities.add({
-                  position: Cesium.Cartesian3.fromDegrees(
-                    METEOR.endLon,
-                    METEOR.endLat,
-                    METEOR.endAlt
-                  ),
-                  ellipse: {
-                    semiMajorAxis: impactRadius,
-                    semiMinorAxis: impactRadius,
-                    height: METEOR.endAlt,
-                    material: Cesium.Color.RED.withAlpha(0.45),
-                    outline: true,
-                    outlineColor: Cesium.Color.RED.withAlpha(0.9),
-                    outlineWidth: 3,
+              if (!trailPolylineEntity) {
+                trailPolylineEntity = viewer.entities.add({
+                  polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArrayHeights(
+                      trailPositionsDegrees
+                    ),
+                    width: 6,
+                    material: new Cesium.PolylineGlowMaterialProperty({
+                      glowPower: 0.2,
+                      color: Cesium.Color.ORANGE.withAlpha(0.85),
+                    }),
                   },
                 });
+              }
+
+              if (impactCircleEntities.length === 0) {
+                const circleCount = 5;
+                const delayMs = 1000;
+                const radiusStep = impactRadius / circleCount;
+                for (let i = 0; i < circleCount; i += 1) {
+                  const timerId = window.setTimeout(() => {
+                    const radius = radiusStep * (i + 1);
+                    const circle = viewer.entities.add({
+                      position: Cesium.Cartesian3.fromDegrees(
+                        METEOR.endLon,
+                        METEOR.endLat,
+                        METEOR.endAlt
+                      ),
+                      ellipse: {
+                        semiMajorAxis: radius,
+                        semiMinorAxis: radius,
+                        height: METEOR.endAlt,
+                        material: Cesium.Color.RED.withAlpha(0.25 + i * 0.12),
+                        outline: true,
+                        outlineColor: Cesium.Color.RED.withAlpha(0.6 + i * 0.08),
+                        outlineWidth: 3,
+                      },
+                    });
+                    impactCircleEntities.push(circle);
+                  }, i * delayMs);
+                  impactCircleTimers.push(timerId);
+                }
               }
 
               burstTimeoutId = window.setTimeout(() => {
