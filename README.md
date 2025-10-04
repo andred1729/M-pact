@@ -1,6 +1,6 @@
 # Globe Simulator
 
-A minimalist CesiumJS setup that renders an interactive 3D globe packed with the Geometry & Appearance demo entities plus a scripted meteor re-entry. It prefers Cesium Ion resources when a token is supplied, but can fall back to open OpenStreetMap imagery so the showcase runs out of the box.
+A minimalist CesiumJS setup that renders an interactive 3D globe focused on a scripted meteor re-entry. It prefers Cesium Ion resources when a token is supplied, but can fall back to open OpenStreetMap imagery so the showcase runs out of the box.
 
 ## Getting started
 
@@ -24,14 +24,14 @@ A minimalist CesiumJS setup that renders an interactive 3D globe packed with the
 ## Controls
 
 - Drag with the mouse (or right-click + drag) to orbit and tilt.
-- Scroll or pinch to zoom in and out of the analytic geometries.
-- Double-click an object to focus and zoom the camera on it.
+- Scroll or pinch to zoom anywhere on the globe.
+- Double-click to focus on the red impact ring once the meteor run has completed.
 - Click `Launch Meteor` to watch the meteor streak from Canada toward the southeast United States.
 
 ## Meteor configuration
 
-Tweak the `METEOR` settings inside `index.html` to change the launch/impact coordinates, flight duration, or swap in a glTF via `modelUri`. Trigger the updated sequence with the `Launch Meteor` button — the script drives Cesium’s clock, samples the trajectory, spawns a glowing trail, and triggers an impact burst when altitude drops below ~1.5 km or the flight time completes.
+Tweak the `METEOR` settings inside `index.html` to change the launch/impact coordinates, flight duration, or swap in a glTF via `modelUri`. Update `METEOR.targetCity` to point at one of the entries in the `CITIES` lookup (currently only Chicago) and `METEOR.asteroidId` to pull from the `ASTEROIDS` catalog (joule yield + size). Click `Launch Meteor` — the script drives Cesium’s clock, samples the trajectory, spawns a glowing trail, and, once the run completes, stamps a red impact ring sized off the asteroid energy so it stays visible for analysis.
 
-The default scene mirrors Cesium’s Geometry & Appearance showcase, so you can inspect rectangles, corridors, polyline volumes, and other primitives that we’ll build on for meteor dynamics.
+The globe is intentionally sparse — only the meteor primitives and the computed impact ring appear — making it easy to layer additional meteor dynamics without the visual noise of extra demo geometry.
 
 This layout keeps the code lightweight so meteor dynamics overlays, heatmaps, or custom tilesets can be added later without reworking the core viewer.
