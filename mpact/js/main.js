@@ -2,15 +2,35 @@
 
 
 
-// Replace with your actual Cesium ion access token
-Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjNjMzMTczNC00NjJlLTQyYzAtOTZmOS00YTBjZGU2Mjk5NjciLCJpZCI6MzQ3MTgxLCJpYXQiOjE3NTk1OTI0MzR9.ai1yqhBBqYtbvXuWT1pHYaQ8nqPqmOPhTjvFjm5UbBQ';
+const ionToken = (window.CESIUM_ION_TOKEN || "").trim();
+if (ionToken) {
+  Cesium.Ion.defaultAccessToken = ionToken;
+} else {
+  console.warn(
+    "CESIUM_ION_TOKEN not provided. Terrain and other Ion resources may be unavailable."
+  );
+}
+
+if (window.CESIUM_BASE_URL) {
+  Cesium.buildModuleUrl.setBaseUrl(window.CESIUM_BASE_URL);
+}
 
 const viewer = new Cesium.Viewer('cesiumContainer', {
   infoBox: true,
-  terrain: Cesium.Terrain.fromWorldTerrain({
-    requestWaterMask: true, // Optional: enable water effects
-  }),
+  terrain: Cesium.Terrain.fromWorldTerrain({ requestWaterMask: true }),
 });
+
+const STORAGE_KEY = 'mpact:selectedAsteroid';
+const selectedNameEl = document.getElementById('selectedAsteroidName');
+
+function updateSelectionDisplay(spec) {
+  if (!selectedNameEl) return;
+  selectedNameEl.textContent = spec
+    ? `Selected: ${spec.name}`
+    : 'No asteroid selected yet.';
+}
+
+updateSelectionDisplay(null);
 
 // --- Clock setup: loop time and run fast enough to see motion ---
 const start = Cesium.JulianDate.now();
@@ -69,7 +89,7 @@ function makeOrbitPosition({ start, stop, altitude, incDeg, RAANDeg, phaseDeg, s
 function addAsteroid({
   id,
   name = "Asteroid",
-  glb = "/assets/asteroid.glb",
+  glb = "mpact/assets/asteroid.glb",
   altitude = 500_000,          // m
   incDeg = 45,                 // inclination
   RAANDeg = 0,                 // ascending node
@@ -79,7 +99,11 @@ function addAsteroid({
   pathColor  = Cesium.Color.CYAN,
   trailTime  = 600,            // seconds of tail
   usePrimitive = true,        // true if you want silhouette support
-  silhouette = { color: Cesium.Color.LIME, size: 3 } // used only if usePrimitive
+  silhouette = { color: Cesium.Color.LIME, size: 3 }, // used only if usePrimitive
+  meteorProfileId = id,
+  energyJoules = 4.0e14,
+  sizeMeters = 20,
+  targetCity = 'chicago'
 }) {
   // Clock window (reuse your viewer clock if already set)
   const start = viewer.clock.startTime ?? Cesium.JulianDate.now();
@@ -121,9 +145,20 @@ function addAsteroid({
       const c = Cesium.Cartographic.fromCartesian(p);
       return `<h3>${name}</h3>
               Lat/Lon: ${Cesium.Math.toDegrees(c.latitude).toFixed(2)}°, ${Cesium.Math.toDegrees(c.longitude).toFixed(2)}°<br>
-              Alt: ${(c.height/1000).toFixed(0)} km`;
+              Alt: ${(c.height/1000).toFixed(0)} km<br>
+              Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
+              Diameter: ${sizeMeters.toFixed(0)} m`;
     }, false)
   });
+
+  e.mpactData = {
+    id,
+    name,
+    meteorProfileId,
+    energyJoules,
+    sizeMeters,
+    targetCity,
+  };
 
   // Visual model: either Entity model or Primitive (for silhouette)
   if (!usePrimitive) {
@@ -162,12 +197,60 @@ function addAsteroid({
   }
 }
 const specs = [
-  { id: "a1", name: "Ast-500km Polar", altitude: 25_000_000, incDeg: 90, RAANDeg: 0,   phaseDeg: 0,   modelScale: 500_000,  pathColor: Cesium.Color.CYAN },
-  { id: "a2", name: "Ast-800km 30°",   altitude: 25_000_000, incDeg: 30, RAANDeg: 60,  phaseDeg: 45,  modelScale: 700_000,  pathColor: Cesium.Color.YELLOW },
-  { id: "a3", name: "Ast-1200km 63°",  altitude: 25_000_000, incDeg: 63.4, RAANDeg: 120, phaseDeg: 180, modelScale: 900_000, pathColor: Cesium.Color.ORANGE },
-  { id: "a4", name: "Ast-LEO Silhouette", altitude: 25_000_000, incDeg: 51.6, RAANDeg: -90, phaseDeg: 270,
-    modelScale: 600_000, pathColor: Cesium.Color.LIME, usePrimitive: true,
-    silhouette: { color: Cesium.Color.LIME, size: 4 } }
+  {
+    id: "a1",
+    name: "Ast-Polar",
+    altitude: 25_000_000,
+    incDeg: 90,
+    RAANDeg: 0,
+    phaseDeg: 0,
+    modelScale: 500_000,
+    pathColor: Cesium.Color.CYAN,
+    meteorProfileId: "a1",
+    energyJoules: 1.2e15,
+    sizeMeters: 45,
+  },
+  {
+    id: "a2",
+    name: "Ast-30°",
+    altitude: 25_000_000,
+    incDeg: 30,
+    RAANDeg: 60,
+    phaseDeg: 45,
+    modelScale: 700_000,
+    pathColor: Cesium.Color.YELLOW,
+    meteorProfileId: "a2",
+    energyJoules: 6.0e14,
+    sizeMeters: 30,
+  },
+  {
+    id: "a3",
+    name: "Ast-63°",
+    altitude: 25_000_000,
+    incDeg: 63.4,
+    RAANDeg: 120,
+    phaseDeg: 180,
+    modelScale: 900_000,
+    pathColor: Cesium.Color.ORANGE,
+    meteorProfileId: "a3",
+    energyJoules: 2.5e15,
+    sizeMeters: 80,
+  },
+  {
+    id: "a4",
+    name: "Ast-Silhouette",
+    altitude: 25_000_000,
+    incDeg: 51.6,
+    RAANDeg: -90,
+    phaseDeg: 270,
+    modelScale: 600_000,
+    pathColor: Cesium.Color.LIME,
+    usePrimitive: true,
+    silhouette: { color: Cesium.Color.LIME, size: 4 },
+    meteorProfileId: "a4",
+    energyJoules: 8.0e14,
+    sizeMeters: 35,
+  },
 ];
 
 const asteroids = specs.map(s => addAsteroid(s));
@@ -225,17 +308,47 @@ const availability = new Cesium.TimeIntervalCollection([
 // find the toolbar DOM node
 const toolbar = viewer.container.querySelector('.cesium-viewer-toolbar');
 
-// create a button with Cesium's classes so it matches styling
 const btn = document.createElement('button');
 btn.className = 'cesium-button cesium-toolbar-button';
-btn.title = 'Start';
-btn.innerText = 'Start';  // or use an icon
+btn.title = 'Start Impact Simulation';
+btn.innerText = 'Start';
+btn.disabled = true;
 toolbar.appendChild(btn);
 
-btn.addEventListener('click', () => {
-  // Example: toggle InfoBox for your entity
-  console.log(viewer.selectedEntity.id);
+let currentSelection = null;
+function setSelection(entity) {
+  const data = entity?.mpactData || null;
+  currentSelection = data;
+  btn.disabled = !data;
+  updateSelectionDisplay(data);
+  viewer.trackedEntity = data ? entity : undefined;
+  if (data && entity) {
+    viewer.flyTo(entity, { duration: 1.5, maximumHeight: 8e7 });
+  }
+}
 
+viewer.selectedEntityChanged.addEventListener(setSelection);
+setSelection(viewer.selectedEntity || null);
+
+btn.addEventListener('click', () => {
+  if (!currentSelection) {
+    window.alert('Select an asteroid first.');
+    return;
+  }
+  const payload = {
+    meteorProfileId: currentSelection.meteorProfileId,
+    name: currentSelection.name,
+    energyJoules: currentSelection.energyJoules,
+    sizeMeters: currentSelection.sizeMeters,
+    targetCity: currentSelection.targetCity,
+    timestamp: Date.now(),
+  };
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Unable to persist asteroid selection:', err);
+  }
+  window.location.href = '/meteor.html';
 });
 
 // const asteroid = viewer.entities.add({
@@ -329,4 +442,3 @@ const current = Cesium.Cartographic.fromCartesian(camera.positionWC);
   duration: 1.5
 
 });
-

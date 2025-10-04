@@ -2,559 +2,97 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Globe Simulator</title>
+    <title>MPACT Asteroid Selection</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="./node_modules/cesium/Build/Cesium/Widgets/widgets.css" />
     <style>
-      :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      body { margin: 0; background: #0b1a2a; color: #f1f3f5; overflow: hidden; }
-      #cesiumContainer { position: absolute; inset: 0; }
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+
+      html,
+      body,
+      #cesiumContainer {
+        margin: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+
       .overlay {
-        position: absolute; top: 1.5rem; left: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 10;
-        background: rgba(6,17,32,.8); border: 1px solid rgba(110,191,244,.35); border-radius: .75rem; padding: 1rem 1.25rem;
-        max-width: 20rem; backdrop-filter: blur(6px); box-shadow: 0 12px 35px rgba(0,0,0,.35);
+        position: absolute;
+        top: 1.5rem;
+        left: 1.5rem;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-width: 20rem;
+        padding: 1rem 1.25rem;
+        background: rgba(6, 17, 32, 0.85);
+        border: 1px solid rgba(125, 211, 252, 0.3);
+        border-radius: 0.75rem;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
       }
-      .overlay h1 { margin: 0; font-size: 1.25rem; }
-      .overlay p { margin: 0; font-size: .95rem; line-height: 1.45; color: #c8d6e5; }
-      .overlay button {
-        margin-top: .75rem; padding: .5rem 1.1rem; font-size: .85rem; border: 1px solid rgba(125,211,252,.45); border-radius: 999px;
-        background: linear-gradient(120deg,#1d8cf8,#935ade); color: #fff; cursor: pointer; transition: transform .2s, box-shadow .2s;
-        box-shadow: 0 8px 22px rgba(33,150,243,.35);
+
+      .overlay h1 {
+        margin: 0;
+        font-size: 1.35rem;
+        color: #f8fafc;
       }
-      .overlay button:hover:enabled { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(33,150,243,.4); }
-      .overlay button:disabled { opacity: .6; cursor: default; box-shadow: none; }
+
+      .overlay p {
+        margin: 0;
+        font-size: 0.95rem;
+        line-height: 1.45;
+        color: #cbd5f5;
+      }
+
+      .status {
+        font-size: 0.9rem;
+        color: #facc15;
+      }
+
+      .hint {
+        font-size: 0.8rem;
+        color: #a5b4fc;
+      }
+
       .credits {
-        position: absolute; bottom: 1rem; right: 1rem; font-size: .8rem; color: rgba(220,230,244,.7); background: rgba(15,23,42,.65);
-        padding: .4rem .75rem; border-radius: 999px; border: 1px solid rgba(100,116,139,.4); backdrop-filter: blur(4px);
+        position: absolute;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 10;
+        font-size: 0.8rem;
+        color: rgba(226, 232, 240, 0.7);
+        background: rgba(15, 23, 42, 0.6);
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        backdrop-filter: blur(6px);
       }
-          .overlay button.small{ padding:.35rem .75rem; font-size:.8rem; }
     </style>
   </head>
   <body>
     <div class="overlay">
-      <h1>Globe Simulator</h1>
-      <p>Explore Cesium’s analytic geometries plus a scripted meteor entry with glowing trails and an impact burst.</p>
-      <div style="display:flex; gap:.5rem; flex-wrap:wrap">
-        <button id="launchMeteor" type="button">Launch Meteor</button>
-        <button id="captureLocation" type="button" title="Capture the current camera as code">Capture Location</button>
-        <button id="pickImpact" type="button" title="Click on the globe to set the impact point">Pick Impact</button>
-      </div>
-      <div style="display:flex; align-items:center; gap:.5rem; font-size:.85rem; margin-top:.35rem">
-        <strong style="font-weight:600">Impact:</strong>
-        <span id="impactDisplay">--</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:.6rem; margin-top:.35rem">
-        <label for="impactAngle" style="font-size:.85rem; color:#c8d6e5">Impact angle:</label>
-        <input id="impactAngle" type="range" min="0" max="85" step="1" value="30" style="flex:1" />
-        <span id="impactAngleVal" style="min-width:2.5rem; text-align:right; font-variant-tabular-nums:tabular-nums">30°</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:.6rem; margin-top:.35rem">
-        <label for="speedMultiplier" style="font-size:.85rem; color:#c8d6e5">Speed:</label>
-        <input id="speedMultiplier" type="range" min="0.2" max="5" step="0.1" value="1.0" style="flex:1" />
-        <span id="speedMultiplierVal" style="min-width:2.5rem; text-align:right; font-variant-tabular-nums:tabular-nums">1.0×</span>
-      </div>
-      <div id="devPanel" style="display:none; margin-top:.75rem;"> style="display:none; margin-top:.75rem;">
-        <div style="font-size:.8rem; opacity:.9; margin: .25rem 0 .4rem 0;">Captured camera code:</div>
-        <pre id="devCameraCode" style="margin:0; padding:.75rem; background:rgba(2,8,23,.6); border:1px solid rgba(125,211,252,.25); border-radius:.5rem; overflow:auto; max-height:10rem;"></pre>
-        <div style="display:flex; gap:.5rem; margin-top:.5rem;">
-          <button id="copyCameraCode" type="button">Copy</button>
-          <button id="useAsStart" type="button" title="Use this camera view as the initial camera on load">Use as Start</button>
-          <button id="clearStart" type="button" title="Clear saved start camera">Clear Saved Start</button>
-        </div>
-      </div>
+      <h1>Pick an Asteroid</h1>
+      <p>
+        Select one of the catalogued asteroids in orbit. When you're ready,
+        press Start to transition into the impact simulation.
+      </p>
+      <div class="status" id="selectedAsteroidName">No asteroid selected yet.</div>
+      <div class="hint">Tip: Click an asteroid label to select it, then use the toolbar Start button.</div>
     </div>
     <div id="cesiumContainer"></div>
-    <div class="credits">Powered by CesiumJS + OpenStreetMap imagery</div>
+    <div class="credits">Powered by CesiumJS</div>
 
     <script>
       window.CESIUM_BASE_URL = "./node_modules/cesium/Build/Cesium/";
       window.CESIUM_ION_TOKEN = "__CESIUM_ION_TOKEN__";
     </script>
     <script src="./node_modules/cesium/Build/Cesium/Cesium.js"></script>
-    <script>
-      (function () {
-        if (!window.Cesium) { console.error("Cesium failed to load. Check the script path."); return; }
-        Cesium.buildModuleUrl.setBaseUrl(window.CESIUM_BASE_URL);
-
-        const ionToken =
-          typeof window.CESIUM_ION_TOKEN === "string" &&
-          window.CESIUM_ION_TOKEN.trim() !== "" &&
-          window.CESIUM_ION_TOKEN !== "__CESIUM_ION_TOKEN__"
-            ? window.CESIUM_ION_TOKEN : null;
-        if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
-
-        const viewerOptions = { infoBox: false };
-        if (!ionToken) {
-          viewerOptions.imageryProvider = new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" });
-          viewerOptions.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-        }
-
-        Cesium.Math.setRandomNumberSeed(1234);
-        const viewer = new Cesium.Viewer("cesiumContainer", viewerOptions);
-        viewer.clock.shouldAnimate = false;
-
-        // === Dev camera loader: apply saved start camera if present ===
-        try {
-          const saved = localStorage.getItem("devCameraStart");
-          if (saved) {
-            const cfg = JSON.parse(saved);
-            viewer.scene.camera.setView(cfg);
-          }
-        } catch (e) { /* ignore */ }
-
-        // ==== Config ====
-        const CITIES = {
-          chicago: {
-            lat: 41.8832,
-            lon: -87.6324,
-            cameraStart: {
-              destination: { lon: -91.527187, lat: 5.866008, height: 14638136.82 },
-              orientation: { heading: 6.283185, pitch: -1.570640, roll: 0.000000 }
-            }
-          }
-        };
-        const ASTEROIDS = { chelyabinskLike: { joules: 4.0e14, sizeMeters: 20 } };
-        const JOULE_RADIUS_SCALE = 1e-9;
-
-        const METEOR = {
-          startLon: -120.0, startLat: 80.0, startAlt: 900000.0,
-          targetCity: "chicago",
-          asteroidId: "chelyabinskLike",
-          endLon: null, endLat: null, endAlt: 1000.0,
-          flightSeconds: 20, trailSeconds: 20,
-          useModel: false, modelUri: "/models/asteroid.glb",
-          tailExtensionFactor: 400.0,             // how far the pre-rendered tail extends behind start (in multiples of surface step)
-          tailMaxPoints: 500,                     // avoid runaway memory
-          tailAddMinDistance: 2500                // meters: decimate tail updates
-        };
-        const targetCity = CITIES[METEOR.targetCity];
-        METEOR.endLon = targetCity ? targetCity.lon : -90.0;
-        METEOR.endLat = targetCity ? targetCity.lat : 33.0;
-        // reflect defaults in UI
-        // (impactDisplay is created later; safe to update again once available)
-        setTimeout(() => {
-          const el = document.getElementById('impactDisplay');
-          if (el) el.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
-        }, 0);
-
-        // === Curved path helper (great-circle + altitude profile) ==========
-        function buildGeodesicPathSamples(opts) {
-          const {
-            startLon, startLat, startAlt,
-            endLon, endLat, endAlt,
-            flightSeconds, numPoints = 96,
-            startTime = Cesium.JulianDate.now(),
-            altExponent = 1.15,
-          } = opts;
-
-          const startCarto = Cesium.Cartographic.fromDegrees(startLon, startLat);
-          const endCarto   = Cesium.Cartographic.fromDegrees(endLon, endLat);
-          const geodesic   = new Cesium.EllipsoidGeodesic(startCarto, endCarto);
-
-          const samples = new Cesium.SampledPositionProperty();
-          const positionsDegHeights = []; // [lon,lat,h, ...]
-
-          for (let i = 0; i < numPoints; i++) {
-            const t = i / (numPoints - 1);
-            const when = Cesium.JulianDate.addSeconds(startTime, t * flightSeconds, new Cesium.JulianDate());
-            const p = geodesic.interpolateUsingFraction(t);
-
-            // Altitude profile
-            const h = startAlt * Math.pow(1 - t, altExponent) + endAlt * (1 - Math.pow(1 - t, altExponent));
-
-            const pos = Cesium.Cartesian3.fromRadians(p.longitude, p.latitude, h);
-            samples.addSample(when, pos);
-
-            positionsDegHeights.push(Cesium.Math.toDegrees(p.longitude), Cesium.Math.toDegrees(p.latitude), h);
-          }
-
-          samples.setInterpolationOptions({
-            interpolationDegree: 2,
-            interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
-          });
-
-          const surfaceStep = geodesic.surfaceDistance / (numPoints - 1); // meters between successive samples
-          return { samples, positionsDegHeights, geodesic, surfaceStep, startCarto, endCarto, numPoints };
-        }
-        // ===================================================================
-
-        function makeParticleImage(size = 32) {
-          const canvas = document.createElement("canvas");
-          canvas.width = size; canvas.height = size;
-          const ctx = canvas.getContext("2d");
-          const g = ctx.createRadialGradient(size/2, size/2, 1, size/2, size/2, size/2);
-          g.addColorStop(0.0,"rgba(255,255,255,1)");
-          g.addColorStop(0.25,"rgba(255,210,0,0.95)");
-          g.addColorStop(1.0,"rgba(255,120,0,0)");
-          ctx.fillStyle = g;
-          ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI*2); ctx.fill();
-          return canvas;
-        }
-
-        // Helper to apply a camera setView using degrees-based config
-        function applyCameraFromConfig(cfg) {
-          if (!cfg) return;
-          viewer.scene.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(
-              cfg.destination.lon,
-              cfg.destination.lat,
-              cfg.destination.height
-            ),
-            orientation: cfg.orientation
-          });
-        }
-
-        const launchButton = document.getElementById("launchMeteor");
-        const angleSlider = document.getElementById("impactAngle");
-        const angleVal    = document.getElementById("impactAngleVal");
-        let impactAngleDeg = Number(angleSlider?.value || 30);
-        angleSlider?.addEventListener("input", () => {
-          impactAngleDeg = Number(angleSlider.value);
-          angleVal.textContent = `${impactAngleDeg}°`;
-        });
-        const speedSlider = document.getElementById("speedMultiplier");
-        const speedVal    = document.getElementById("speedMultiplierVal");
-        let speedMult = Number(speedSlider?.value || 1.0);
-        speedSlider?.addEventListener("input", () => {
-          speedMult = Number(speedSlider.value);
-          speedVal.textContent = speedMult*32000 + 'mph';
-          viewer.clock.multiplier = speedMult* (5/6);
-        });
-
-        let meteorActive = false;
-        let impactCircleEntities = [];
-        let impactCircleTimers = [];
-        let activeTrail = null;
-        let trajectoryEntity = null;  // persistent path shown after impact until replay           // mutable positions array for CallbackProperty
-
-        function startMeteorRun() {
-          if (!launchButton) { console.error("Launch Meteor button is missing."); return; }
-          if (meteorActive) return;
-
-          // Cleanup from prior runs
-          impactCircleTimers.forEach((id) => window.clearTimeout(id));
-          impactCircleTimers = [];
-          impactCircleEntities.forEach((e) => viewer.entities.remove(e));
-          impactCircleEntities = [];
-          if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
-          if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; }
-          
-
-          const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
-          const impactRadius = asteroidProfile
-            ? Math.max(asteroidProfile.sizeMeters * 500.0, asteroidProfile.joules * JOULE_RADIUS_SCALE)
-            : 50000.0;
-
-          meteorActive = true;
-          launchButton.disabled = true;
-          launchButton.textContent = "Meteor in flight";
-          if (pickBtn) pickBtn.disabled = true;
-
-          const startTime = Cesium.JulianDate.now();
-          const stopTime = Cesium.JulianDate.addSeconds(startTime, METEOR.flightSeconds, new Cesium.JulianDate());
-
-          viewer.clock.startTime = startTime.clone();
-          viewer.clock.stopTime = stopTime.clone();
-          viewer.clock.currentTime = startTime.clone();
-          viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
-          viewer.clock.multiplier = speedMult;
-          viewer.clock.shouldAnimate = false;
-
-          // === Build the curved path (trajectory) ==========================
-          // First, establish geodesic to compute surface distance for angle math
-          const tmpGeodesic = new Cesium.EllipsoidGeodesic(
-            Cesium.Cartographic.fromDegrees(METEOR.startLon, METEOR.startLat),
-            Cesium.Cartographic.fromDegrees(METEOR.endLon, METEOR.endLat)
-          );
-          const L = tmpGeodesic.surfaceDistance; // meters
-          const angleRad = Cesium.Math.toRadians(Math.min(85, Math.max(0, impactAngleDeg)));
-
-          // Choose start altitude so that dh/ds at end matches -tan(angle)
-          // For a linear profile (altExponent = 1), dh/ds = -(startAlt - endAlt)/L
-          const startAltForAngle = METEOR.endAlt + L * Math.tan(angleRad);
-
-          const {
-            samples: positionProperty,
-            positionsDegHeights: trailPositionsDegrees,
-            geodesic,
-            surfaceStep,
-            startCarto,
-            endCarto,
-            numPoints
-          } = buildGeodesicPathSamples({
-            startLon: METEOR.startLon, startLat: METEOR.startLat, startAlt: startAltForAngle,
-            endLon: METEOR.endLon,     endLat: METEOR.endLat,     endAlt: METEOR.endAlt,
-            flightSeconds: METEOR.flightSeconds,
-            numPoints: 128,
-            startTime,
-            altExponent: 1 // linear to satisfy slope requirement at impact
-          });
-
-          
-
-          const baseEntity = {
-            position: positionProperty,
-            orientation: new Cesium.VelocityOrientationProperty(positionProperty),
-            path: {
-              resolution: 1,
-              leadTime: 0,
-              trailTime: METEOR.trailSeconds,
-              material: new Cesium.PolylineGlowMaterialProperty({ color: Cesium.Color.ORANGE, glowPower: 0.25 }),
-              width: 8,
-            },
-          };
-
-          const meteorEntity = viewer.entities.add(
-            METEOR.useModel
-              ? { ...baseEntity, model: { uri: METEOR.modelUri, minimumPixelSize: 32, scale: 1.0 } }
-              : { ...baseEntity, point: { pixelSize: 12, color: Cesium.Color.YELLOW.withAlpha(0.95), outlineColor: Cesium.Color.ORANGE, outlineWidth: 2 } }
-          );
-
-          // Particle plume attached to meteor orientation
-          const trailDuration = METEOR.flightSeconds + 20;
-          const plume = new Cesium.ParticleSystem({
-            image: makeParticleImage(32),
-            startScale: 1.0, endScale: 0.5, emissionRate: 140,
-            particleLife: trailDuration, lifetime: trailDuration, speed: 800.0,
-            emitter: new Cesium.ConeEmitter(Cesium.Math.toRadians(10)), sizeInMeters: true,
-          });
-          viewer.scene.primitives.add(plume);
-          activeTrail = plume;
-
-          let burstTimeoutId = null;
-          let burstPrimitive = null;
-          let preRenderCallback;
-
-          const finalize = () => {
-            if (burstTimeoutId !== null) { window.clearTimeout(burstTimeoutId); burstTimeoutId = null; }
-            viewer.scene.preRender.removeEventListener(preRenderCallback);
-            if (burstPrimitive) { viewer.scene.primitives.remove(burstPrimitive); burstPrimitive = null; }
-            viewer.entities.remove(meteorEntity);
-            viewer.clock.shouldAnimate = false;
-            meteorActive = false;
-            launchButton.disabled = false;
-            if (pickBtn) pickBtn.disabled = false;
-            launchButton.textContent = "Replay Meteor";
-          };
-
-          const rotationScratch = new Cesium.Matrix3();
-          const flipMatrix = Cesium.Matrix3.fromRotationY(Math.PI, new Cesium.Matrix3());
-          const plumeMatrix = new Cesium.Matrix4();
-
-          preRenderCallback = function (_scene, time) {
-            const now = time || viewer.clock.currentTime;
-            const position = baseEntity.position.getValue(now);
-            if (!position) return;
-
-            // Update plume transform to follow meteor orientation
-            const orientation = meteorEntity.orientation.getValue(now);
-            if (orientation) {
-              Cesium.Matrix3.fromQuaternion(orientation, rotationScratch);
-              Cesium.Matrix3.multiply(rotationScratch, flipMatrix, rotationScratch);
-              Cesium.Matrix4.fromRotationTranslation(rotationScratch, position, plumeMatrix);
-              plume.modelMatrix = plumeMatrix;
-            } else {
-              Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, plumeMatrix);
-              plume.modelMatrix = plumeMatrix;
-            }
-
-            const reachedEnd = Cesium.JulianDate.greaterThanOrEquals(now, stopTime);
-            if (reachedEnd) {
-              viewer.scene.preRender.removeEventListener(preRenderCallback);
-
-              meteorEntity.show = false;
-              viewer.clock.currentTime = stopTime.clone();
-
-              // Persistent trajectory polyline (kept until next run)
-              trajectoryEntity = viewer.entities.add({
-                polyline: {
-                  positions: Cesium.Cartesian3.fromDegreesArrayHeights(trailPositionsDegrees),
-                  width: 6,
-                  material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.2,
-                    color: Cesium.Color.ORANGE.withAlpha(0.85),
-                  }),
-                },
-              });
-
-              // Impact burst
-              const impactCartesian = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 10.0);
-              burstPrimitive = new Cesium.ParticleSystem({
-                image: makeParticleImage(48), startScale: 2.0, endScale: 6.0,
-                emissionRate: 0, lifetime: 1.6, particleLife: 0.8, speed: 120.0, sizeInMeters: true,
-                emitter: new Cesium.SphereEmitter(80.0),
-                modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(impactCartesian),
-                bursts: [ new Cesium.ParticleBurst({ time: 0.0, minimum: 300, maximum: 300 }) ],
-              });
-              viewer.scene.primitives.add(burstPrimitive);
-
-              
-              // Expanding impact rings
-              if (impactCircleEntities.length === 0) {
-                const circleCount = 5, delayMs = 1000;
-                const radiusStep = impactRadius / circleCount;
-                for (let i = 0; i < circleCount; i++) {
-                  const timerId = window.setTimeout(() => {
-                    const radius = radiusStep * (i + 1);
-                    const circle = viewer.entities.add({
-                      position: Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt),
-                      ellipse: {
-                        semiMajorAxis: radius, semiMinorAxis: radius, height: METEOR.endAlt,
-                        material: Cesium.Color.RED.withAlpha(0.25 + i * 0.12),
-                        outline: true, outlineColor: Cesium.Color.RED.withAlpha(0.6 + i * 0.08), outlineWidth: 3,
-                      },
-                    });
-                    impactCircleEntities.push(circle);
-                  }, i * delayMs);
-                  impactCircleTimers.push(timerId);
-                }
-              }
-
-              burstTimeoutId = window.setTimeout(finalize, 2000);
-            }
-          };
-
-          viewer.scene.preRender.addEventListener(preRenderCallback);
-          viewer.clock.shouldAnimate = true; // Go!
-        }
-
-        if (launchButton) launchButton.addEventListener("click", startMeteorRun);
-
-        // === Impact picking (click anywhere to set endLon/Lat) ===
-        const pickBtn = document.getElementById("pickImpact");
-        const impactDisp = document.getElementById("impactDisplay");
-        let pickingImpact = false;
-        let impactMarker = null;
-
-        function updateImpactDisplay() {
-          if (impactDisp) impactDisp.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
-        }
-        updateImpactDisplay();
-
-        const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        pickBtn?.addEventListener("click", () => {
-          pickingImpact = !pickingImpact;
-          pickBtn.textContent = pickingImpact ? "Click on globe…" : "Pick Impact";
-          viewer.canvas.style.cursor = pickingImpact ? "crosshair" : "";
-        });
-
-        clickHandler.setInputAction((evt) => {
-          if (!pickingImpact) return;
-          const ray = viewer.scene.camera.getPickRay(evt.position);
-          const cart = viewer.scene.globe.pick(ray, viewer.scene);
-          if (!cart) { pickingImpact = false; pickBtn.textContent = "Pick Impact"; viewer.canvas.style.cursor = ""; return; }
-          const carto = Cesium.Cartographic.fromCartesian(cart);
-          METEOR.endLon = Cesium.Math.toDegrees(carto.longitude);
-          METEOR.endLat = Cesium.Math.toDegrees(carto.latitude);
-          updateImpactDisplay();
-
-          if (!impactMarker) {
-            impactMarker = viewer.entities.add({
-              position: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, METEOR.endAlt),
-              point: { pixelSize: 10, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 }
-            });
-          } else {
-            impactMarker.position = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, METEOR.endAlt);
-          }
-
-          pickingImpact = false;
-          pickBtn.textContent = "Pick Impact";
-          viewer.canvas.style.cursor = "";
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-        // === End impact picking ===
-
-        // === Developer camera capture tool ===
-
-        // === Developer camera capture tool ===
-        const captureBtn = document.getElementById("captureLocation");
-        const devPanel   = document.getElementById("devPanel");
-        const codePre    = document.getElementById("devCameraCode");
-        const copyBtn    = document.getElementById("copyCameraCode");
-        const useBtn     = document.getElementById("useAsStart");
-        const clearBtn   = document.getElementById("clearStart");
-
-        function captureCamera() {
-          const cam = viewer.scene.camera;
-          // Position (cartographic)
-          const carto = Cesium.Ellipsoid.WGS84.cartesianToCartographic(cam.position);
-          const lon = Cesium.Math.toDegrees(carto.longitude);
-          const lat = Cesium.Math.toDegrees(carto.latitude);
-          const height = carto.height;
-          // Orientation (radians)
-          const heading = cam.heading;
-          const pitch   = cam.pitch;
-          const roll    = cam.roll;
-
-          const snippet = `viewer.scene.camera.setView({
-  destination: Cesium.Cartesian3.fromDegrees(${lon.toFixed(6)}, ${lat.toFixed(6)}, ${height.toFixed(2)}),
-  orientation: {
-    heading: ${heading.toFixed(6)},
-    pitch: ${pitch.toFixed(6)},
-    roll: ${roll.toFixed(6)}
-  }
-});`;
-
-          codePre.textContent = snippet;
-          devPanel.style.display = "block";
-
-          // Persist the latest capture for convenience
-          const jsonCfg = {
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
-            orientation: { heading, pitch, roll }
-          };
-          // We can't store Cartesian3 directly (circular); store a serializable object
-          localStorage.setItem("devCameraCapture", JSON.stringify({
-            destination: { lon, lat, height },
-            orientation: { heading, pitch, roll }
-          }));
-        }
-
-        captureBtn?.addEventListener("click", captureCamera);
-
-        copyBtn?.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(codePre.textContent || "");
-            copyBtn.textContent = "Copied!"; setTimeout(() => (copyBtn.textContent = "Copy"), 1200);
-          } catch { /* ignore */ }
-        });
-
-        useBtn?.addEventListener("click", () => {
-          try {
-            const raw = localStorage.getItem("devCameraCapture");
-            if (!raw) return;
-            const cap = JSON.parse(raw);
-            const cfg = {
-              destination: Cesium.Cartesian3.fromDegrees(cap.destination.lon, cap.destination.lat, cap.destination.height),
-              orientation: cap.orientation,
-            };
-            // Save for next loads
-            localStorage.setItem("devCameraStart", JSON.stringify({
-              destination: { lon: cap.destination.lon, lat: cap.destination.lat, height: cap.destination.height },
-              orientation: cap.orientation,
-            }));
-            // Apply immediately
-            viewer.scene.camera.setView(cfg);
-            useBtn.textContent = "Saved ✓"; setTimeout(() => (useBtn.textContent = "Use as Start"), 1200);
-          } catch { /* ignore */ }
-        });
-
-        clearBtn?.addEventListener("click", () => {
-          localStorage.removeItem("devCameraStart");
-          clearBtn.textContent = "Cleared"; setTimeout(() => (clearBtn.textContent = "Clear Saved Start"), 1200);
-        });
-
-        // Initial camera (used if no saved start camera is present)
-        if (!localStorage.getItem("devCameraStart")) {
-          const cityCam = targetCity && targetCity.cameraStart;
-          if (cityCam) {
-            applyCameraFromConfig(cityCam);
-          } else {
-            viewer.scene.camera.setView({
-              destination: Cesium.Cartesian3.fromDegrees(-90, 35, 20_000_000),
-            });
-          }
-        }
-      })();
-    </script>
+    <script src="mpact/js/main.js"></script>
   </body>
 </html>

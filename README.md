@@ -1,37 +1,47 @@
-# Globe Simulator
+# MPACT Asteroid Demo
 
-A minimalist CesiumJS setup that renders an interactive 3D globe focused on a scripted meteor re-entry. It prefers Cesium Ion resources when a token is supplied, but can fall back to open OpenStreetMap imagery so the showcase runs out of the box.
+This repo now hosts both stages of the experience behind a single Node server:
+
+1. **Orbital catalog (`/`)** – pick an asteroid in Cesium’s 3D globe, inspect its
+   orbit, and press **Start** (toolbar button) to hand the selection off to the
+   impact visualisation.
+2. **Impact visualisation (`/meteor.html`)** – the selection is replayed at
+   ground level with a customisable trajectory, glowing trail, and expanding
+   impact rings. A `Back to Selection` button returns you to the orbital view.
+
+The Cesium Ion token you export is injected into both pages so you can run the
+entire flow from `node server.js` without juggling separate servers.
 
 ## Getting started
 
-1. Install dependencies (already done if `node_modules` is present):
-   ```bash
-   npm install
-   ```
-2. Export your Cesium Ion token (optional, but recommended if you want global imagery/terrain):
-   ```bash
-   export CESIUM_ION_TOKEN="paste-your-token-here"
-   ```
-3. Start the bundled Node server, which injects the token into the page at runtime:
-   ```bash
-   node server.js
-   ```
-   The server defaults to port `8080`. Override with `PORT=3000 node server.js` if desired.
-4. Open the app: <http://localhost:8080>
+```bash
+npm install
+export CESIUM_ION_TOKEN="paste-your-ion-token"
+node server.js
+```
 
-> Prefer a static server? `python3 -m http.server` still works, but any Cesium Ion token will be ignored.
+Open <http://localhost:8080> to choose an asteroid. When you’re ready, click the
+toolbar **Start** button; the app will navigate to `/meteor.html` and replay the
+impact using the energy/size metadata from your selection. The meteor page keeps
+that trail on screen until you hit **Replay Meteor** or return to the catalog.
 
-## Controls
+## Orbital catalog tips
 
-- Drag with the mouse (or right-click + drag) to orbit and tilt.
-- Scroll or pinch to zoom anywhere on the globe.
-- Double-click to focus on the red impact ring once the meteor run has completed.
-- Click `Launch Meteor` to watch the meteor streak from Canada toward the southeast United States.
+- Drag/right-click to orbit and tilt, use the mouse wheel to zoom.
+- Click an asteroid label to select it – the selection banner updates and the
+  **Start** button becomes enabled.
+- Each asteroid encodes nominal energy (petajoules) and approximate diameter;
+  those values are forwarded to the impact stage for ring sizing.
 
-## Meteor configuration
+## Impact stage controls
 
-Tweak the `METEOR` settings inside `index.html` to change the launch/impact coordinates, flight duration, or swap in a glTF via `modelUri`. Update `METEOR.targetCity` to point at one of the entries in the `CITIES` lookup (currently only Chicago) and `METEOR.asteroidId` to pull from the `ASTEROIDS` catalog (joule yield + size). Click `Launch Meteor` — the script drives Cesium’s clock, samples a straight-line trajectory that already includes an extended inbound tail, leaves the glowing path in-place for post-run inspection, and, once the run completes, animates five expanding red impact rings sized off the asteroid energy so the zone stays visible for analysis.
+- `Launch Meteor` plays the run; the orange trail only shows the path already
+  travelled so far.
+- `Back to Selection` returns to the orbital page to pick a new asteroid.
+- `Pick Impact` lets you click a new surface location before replaying.
+- `Impact angle` and `Speed` sliders refine the approach vector and clock
+  multiplier; the trajectory curve and particle plume update accordingly.
+- Captured trails persist between runs until you hit **Replay Meteor**.
 
-The globe is intentionally sparse — only the meteor primitives and the computed impact ring appear — making it easy to layer additional meteor dynamics without the visual noise of extra demo geometry.
-
-This layout keeps the code lightweight so meteor dynamics overlays, heatmaps, or custom tilesets can be added later without reworking the core viewer.
+The meteor view intentionally stays sparse so you can layer additional overlays
+or analysis without fighting extra demo geometry.

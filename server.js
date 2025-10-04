@@ -70,17 +70,18 @@ function streamFile(filePath, res, stat) {
   stream.pipe(res);
 }
 
-function serveIndex(res) {
-  const indexPath = path.join(ROOT_DIR, "index.html");
-  fs.readFile(indexPath, "utf8", (err, raw) => {
+function renderHtml(raw) {
+  const token = process.env.CESIUM_ION_TOKEN || "";
+  return raw.replace(/__CESIUM_ION_TOKEN__/g, token);
+}
+
+function serveHtmlFile(filePath, res) {
+  fs.readFile(filePath, "utf8", (err, raw) => {
     if (err) {
-      console.error("Unable to read index.html", err);
-      sendError(res, 500, "Failed to read index.html");
+      console.error("Unable to read", filePath, err);
+      sendError(res, 500, "Failed to read HTML file");
       return;
     }
-
-    const token = process.env.CESIUM_ION_TOKEN || "";
-    const rendered = raw.replace(/__CESIUM_ION_TOKEN__/g, token);
 
     const headers = {
       "Content-Type": MIME_TYPES[".html"],
@@ -92,8 +93,13 @@ function serveIndex(res) {
     }
 
     res.writeHead(200, headers);
-    res.end(rendered);
+    res.end(renderHtml(raw));
   });
+}
+
+function serveIndex(res) {
+  const indexPath = path.join(ROOT_DIR, "index.html");
+  serveHtmlFile(indexPath, res);
 }
 
 const server = http.createServer((req, res) => {
@@ -113,13 +119,13 @@ const server = http.createServer((req, res) => {
 
     fs.stat(filePath, (err, stat) => {
       if (err) {
-        if (err.code === "ENOENT" && url.pathname.endsWith("/")) {
+      if (err.code === "ENOENT" && url.pathname.endsWith("/")) {
           const nestedIndex = path.join(filePath, "index.html");
           fs.stat(nestedIndex, (innerErr, innerStat) => {
             if (innerErr) {
               sendError(res, 404, "Not found");
             } else {
-              streamFile(nestedIndex, res, innerStat);
+              serveHtmlFile(nestedIndex, res);
             }
           });
         } else {
@@ -134,9 +140,15 @@ const server = http.createServer((req, res) => {
           if (innerErr) {
             sendError(res, 403, "Directory listing not permitted");
           } else {
-            streamFile(nestedIndex, res, innerStat);
+            serveHtmlFile(nestedIndex, res);
           }
         });
+        return;
+      }
+
+      const ext = path.extname(filePath);
+      if (ext === ".html") {
+        serveHtmlFile(filePath, res);
         return;
       }
 
@@ -149,7 +161,9 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Globe simulator running at http://localhost:${PORT}`);
+  console.log(`MPACT demo running at http://localhost:${PORT}`);
+  console.log('  • Asteroid catalog: /');
+  console.log('  • Meteor impact:   /meteor.html');
   if (process.env.CESIUM_ION_TOKEN) {
     console.log("Cesium Ion token detected; premium imagery and terrain enabled.");
   } else {
