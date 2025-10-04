@@ -4,105 +4,49 @@
     <meta charset="utf-8" />
     <title>Globe Simulator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link
-      rel="stylesheet"
-      href="./node_modules/cesium/Build/Cesium/Widgets/widgets.css"
-    />
+    <link rel="stylesheet" href="./node_modules/cesium/Build/Cesium/Widgets/widgets.css" />
     <style>
-      :root {
-        color-scheme: dark;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      body {
-        margin: 0;
-        background: #0b1a2a;
-        color: #f1f3f5;
-        overflow: hidden;
-      }
-
-      #cesiumContainer {
-        position: absolute;
-        inset: 0;
-      }
-
+      :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; background: #0b1a2a; color: #f1f3f5; overflow: hidden; }
+      #cesiumContainer { position: absolute; inset: 0; }
       .overlay {
-        position: absolute;
-        top: 1.5rem;
-        left: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        z-index: 10;
-        background: rgba(6, 17, 32, 0.8);
-        border: 1px solid rgba(110, 191, 244, 0.35);
-        border-radius: 0.75rem;
-        padding: 1rem 1.25rem;
-        max-width: 20rem;
-        backdrop-filter: blur(6px);
-        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.35);
+        position: absolute; top: 1.5rem; left: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 10;
+        background: rgba(6,17,32,.8); border: 1px solid rgba(110,191,244,.35); border-radius: .75rem; padding: 1rem 1.25rem;
+        max-width: 20rem; backdrop-filter: blur(6px); box-shadow: 0 12px 35px rgba(0,0,0,.35);
       }
-
-      .overlay h1 {
-        margin: 0;
-        font-size: 1.25rem;
-      }
-
-      .overlay p {
-        margin: 0;
-        font-size: 0.95rem;
-        line-height: 1.45;
-        color: #c8d6e5;
-      }
-
+      .overlay h1 { margin: 0; font-size: 1.25rem; }
+      .overlay p { margin: 0; font-size: .95rem; line-height: 1.45; color: #c8d6e5; }
       .overlay button {
-        margin-top: 0.75rem;
-        padding: 0.5rem 1.1rem;
-        font-size: 0.85rem;
-        border: 1px solid rgba(125, 211, 252, 0.45);
-        border-radius: 999px;
-        background: linear-gradient(120deg, #1d8cf8, #935ade);
-        color: #ffffff;
-        cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        box-shadow: 0 8px 22px rgba(33, 150, 243, 0.35);
+        margin-top: .75rem; padding: .5rem 1.1rem; font-size: .85rem; border: 1px solid rgba(125,211,252,.45); border-radius: 999px;
+        background: linear-gradient(120deg,#1d8cf8,#935ade); color: #fff; cursor: pointer; transition: transform .2s, box-shadow .2s;
+        box-shadow: 0 8px 22px rgba(33,150,243,.35);
       }
-
-      .overlay button:hover:enabled {
-        transform: translateY(-1px);
-        box-shadow: 0 12px 28px rgba(33, 150, 243, 0.4);
-      }
-
-      .overlay button:disabled {
-        opacity: 0.6;
-        cursor: default;
-        box-shadow: none;
-      }
-
+      .overlay button:hover:enabled { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(33,150,243,.4); }
+      .overlay button:disabled { opacity: .6; cursor: default; box-shadow: none; }
       .credits {
-        position: absolute;
-        bottom: 1rem;
-        right: 1rem;
-        font-size: 0.8rem;
-        color: rgba(220, 230, 244, 0.7);
-        background: rgba(15, 23, 42, 0.65);
-        padding: 0.4rem 0.75rem;
-        border-radius: 999px;
-        border: 1px solid rgba(100, 116, 139, 0.4);
-        backdrop-filter: blur(4px);
+        position: absolute; bottom: 1rem; right: 1rem; font-size: .8rem; color: rgba(220,230,244,.7); background: rgba(15,23,42,.65);
+        padding: .4rem .75rem; border-radius: 999px; border: 1px solid rgba(100,116,139,.4); backdrop-filter: blur(4px);
       }
+          .overlay button.small{ padding:.35rem .75rem; font-size:.8rem; }
     </style>
   </head>
   <body>
     <div class="overlay">
       <h1>Globe Simulator</h1>
-      <p>
-        Explore Cesium’s analytic geometries plus a scripted meteor entry with
-        glowing trails and an impact burst. Click Launch Meteor to run the
-        sequence, then use mouse or trackpad gestures to orbit, zoom, and
-        inspect each feature.
-      </p>
-      <button id="launchMeteor" type="button">Launch Meteor</button>
+      <p>Explore Cesium’s analytic geometries plus a scripted meteor entry with glowing trails and an impact burst.</p>
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap">
+        <button id="launchMeteor" type="button">Launch Meteor</button>
+        <button id="captureLocation" type="button" title="Capture the current camera as code">Capture Location</button>
+      </div>
+      <div id="devPanel" style="display:none; margin-top:.75rem;">
+        <div style="font-size:.8rem; opacity:.9; margin: .25rem 0 .4rem 0;">Captured camera code:</div>
+        <pre id="devCameraCode" style="margin:0; padding:.75rem; background:rgba(2,8,23,.6); border:1px solid rgba(125,211,252,.25); border-radius:.5rem; overflow:auto; max-height:10rem;"></pre>
+        <div style="display:flex; gap:.5rem; margin-top:.5rem;">
+          <button id="copyCameraCode" type="button">Copy</button>
+          <button id="useAsStart" type="button" title="Use this camera view as the initial camera on load">Use as Start</button>
+          <button id="clearStart" type="button" title="Clear saved start camera">Clear Saved Start</button>
+        </div>
+      </div>
     </div>
     <div id="cesiumContainer"></div>
     <div class="credits">Powered by CesiumJS + OpenStreetMap imagery</div>
@@ -114,155 +58,135 @@
     <script src="./node_modules/cesium/Build/Cesium/Cesium.js"></script>
     <script>
       (function () {
-        if (!window.Cesium) {
-          console.error("Cesium failed to load. Check the script path.");
-          return;
-        }
-
+        if (!window.Cesium) { console.error("Cesium failed to load. Check the script path."); return; }
         Cesium.buildModuleUrl.setBaseUrl(window.CESIUM_BASE_URL);
 
-        // Prefer Ion resources when a token is available; otherwise fall back to OSM.
         const ionToken =
           typeof window.CESIUM_ION_TOKEN === "string" &&
           window.CESIUM_ION_TOKEN.trim() !== "" &&
           window.CESIUM_ION_TOKEN !== "__CESIUM_ION_TOKEN__"
-            ? window.CESIUM_ION_TOKEN
-            : null;
+            ? window.CESIUM_ION_TOKEN : null;
+        if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
 
-        if (ionToken) {
-          Cesium.Ion.defaultAccessToken = ionToken;
-        } else {
-          console.warn(
-            "CESIUM_ION_TOKEN not provided. Falling back to public imagery providers only."
-          );
-        }
-
-        const viewerOptions = {
-          infoBox: false,
-        };
-
+        const viewerOptions = { infoBox: false };
         if (!ionToken) {
-          viewerOptions.imageryProvider = new Cesium.OpenStreetMapImageryProvider({
-            url: "https://tile.openstreetmap.org/",
-          });
+          viewerOptions.imageryProvider = new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" });
           viewerOptions.terrainProvider = new Cesium.EllipsoidTerrainProvider();
         }
 
         Cesium.Math.setRandomNumberSeed(1234);
-
         const viewer = new Cesium.Viewer("cesiumContainer", viewerOptions);
-        const entities = viewer.entities;
-
-        viewer.zoomTo(viewer.entities);
-
         viewer.clock.shouldAnimate = false;
 
-        // ==== Meteor: drop-in script integration ====
-        // Predetermined cities (extend as needed)
-        const CITIES = {
-          chicago: { lat: 41.8832, lon: -87.6324 },
-        };
+        // === Dev camera loader: apply saved start camera if present ===
+        try {
+          const saved = localStorage.getItem("devCameraStart");
+          if (saved) {
+            const cfg = JSON.parse(saved);
+            viewer.scene.camera.setView(cfg);
+          }
+        } catch (e) { /* ignore */ }
 
-        // Asteroid catalog for quick scenario swaps
-        const ASTEROIDS = {
-          chelyabinskLike: {
-            joules: 4.0e14,
-            sizeMeters: 20,
-          },
-        };
+        // ==== Config ====
+        const CITIES = { chicago: { lat: 41.8832, lon: -87.6324 } };
+        const ASTEROIDS = { chelyabinskLike: { joules: 4.0e14, sizeMeters: 20 } };
         const JOULE_RADIUS_SCALE = 1e-9;
 
         const METEOR = {
-          startLon: -120.,
-          startLat: 80.,
-          startAlt: 900000.0,
-          // Select target city (currently only 'chicago')
+          startLon: -120.0, startLat: 80.0, startAlt: 900000.0,
           targetCity: "chicago",
-          // Select asteroid profile
           asteroidId: "chelyabinskLike",
-          endLon: null,
-          endLat: null,
-          endAlt: 1000.0,
-          flightSeconds: 20,
-          trailSeconds: 20,
-          useModel: false,
-          modelUri: "/models/asteroid.glb",
+          endLon: null, endLat: null, endAlt: 1000.0,
+          flightSeconds: 20, trailSeconds: 20,
+          useModel: false, modelUri: "/models/asteroid.glb",
+          tailExtensionFactor: 400.0,             // how far the pre-rendered tail extends behind start (in multiples of surface step)
+          tailMaxPoints: 500,                     // avoid runaway memory
+          tailAddMinDistance: 2500                // meters: decimate tail updates
         };
-
         const targetCity = CITIES[METEOR.targetCity];
-        if (targetCity) {
-          METEOR.endLon = targetCity.lon;
-          METEOR.endLat = targetCity.lat;
-        } else {
-          METEOR.endLon = -90.0;
-          METEOR.endLat = 33.0;
+        METEOR.endLon = targetCity ? targetCity.lon : -90.0;
+        METEOR.endLat = targetCity ? targetCity.lat : 33.0;
+
+        // === Curved path helper (great-circle + altitude profile) ==========
+        function buildGeodesicPathSamples(opts) {
+          const {
+            startLon, startLat, startAlt,
+            endLon, endLat, endAlt,
+            flightSeconds, numPoints = 96,
+            startTime = Cesium.JulianDate.now(),
+          } = opts;
+
+          const startCarto = Cesium.Cartographic.fromDegrees(startLon, startLat);
+          const endCarto   = Cesium.Cartographic.fromDegrees(endLon, endLat);
+          const geodesic   = new Cesium.EllipsoidGeodesic(startCarto, endCarto);
+
+          const samples = new Cesium.SampledPositionProperty();
+          const positionsDegHeights = []; // [lon,lat,h, ...]
+
+          for (let i = 0; i < numPoints; i++) {
+            const t = i / (numPoints - 1);
+            const when = Cesium.JulianDate.addSeconds(startTime, t * flightSeconds, new Cesium.JulianDate());
+            const p = geodesic.interpolateUsingFraction(t);
+
+            // Altitude profile: 1.0 linear; >1 drops faster near end
+            const h = startAlt * Math.pow(1 - t, 1.15) + endAlt * (1 - Math.pow(1 - t, 1.15));
+
+            const pos = Cesium.Cartesian3.fromRadians(p.longitude, p.latitude, h);
+            samples.addSample(when, pos);
+
+            positionsDegHeights.push(Cesium.Math.toDegrees(p.longitude), Cesium.Math.toDegrees(p.latitude), h);
+          }
+
+          samples.setInterpolationOptions({
+            interpolationDegree: 2,
+            interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
+          });
+
+          const surfaceStep = geodesic.surfaceDistance / (numPoints - 1); // meters between successive samples
+          return { samples, positionsDegHeights, geodesic, surfaceStep, startCarto, endCarto, numPoints };
         }
+        // ===================================================================
 
         function makeParticleImage(size = 32) {
           const canvas = document.createElement("canvas");
-          canvas.width = size;
-          canvas.height = size;
+          canvas.width = size; canvas.height = size;
           const ctx = canvas.getContext("2d");
-          const gradient = ctx.createRadialGradient(
-            size / 2,
-            size / 2,
-            1,
-            size / 2,
-            size / 2,
-            size / 2
-          );
-          gradient.addColorStop(0.0, "rgba(255,255,255,1)");
-          gradient.addColorStop(0.25, "rgba(255,210,0,0.95)");
-          gradient.addColorStop(1.0, "rgba(255,120,0,0)");
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-          ctx.fill();
+          const g = ctx.createRadialGradient(size/2, size/2, 1, size/2, size/2, size/2);
+          g.addColorStop(0.0,"rgba(255,255,255,1)");
+          g.addColorStop(0.25,"rgba(255,210,0,0.95)");
+          g.addColorStop(1.0,"rgba(255,120,0,0)");
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI*2); ctx.fill();
           return canvas;
         }
 
         const launchButton = document.getElementById("launchMeteor");
+
         let meteorActive = false;
         let impactCircleEntities = [];
         let impactCircleTimers = [];
         let activeTrail = null;
-        let trailPolylineEntity = null;
+        let trailPolylineEntity = null;       // permanent full-path polyline (drawn at end)
+        let tailPolylineEntity = null;        // dynamic tail visible during flight
+        let tailPathPositions = [];           // mutable positions array for CallbackProperty
 
         function startMeteorRun() {
-          if (!launchButton) {
-            console.error("Launch Meteor button is missing.");
-            return;
-          }
-          if (meteorActive) {
-            return;
-          }
+          if (!launchButton) { console.error("Launch Meteor button is missing."); return; }
+          if (meteorActive) return;
 
-          if (impactCircleTimers.length) {
-            impactCircleTimers.forEach((timerId) => window.clearTimeout(timerId));
-            impactCircleTimers = [];
-          }
-
-          if (impactCircleEntities.length) {
-            impactCircleEntities.forEach((entity) => viewer.entities.remove(entity));
-            impactCircleEntities = [];
-          }
-
-          if (activeTrail) {
-            viewer.scene.primitives.remove(activeTrail);
-            activeTrail = null;
-          }
-
-          if (trailPolylineEntity) {
-            viewer.entities.remove(trailPolylineEntity);
-            trailPolylineEntity = null;
-          }
+          // Cleanup from prior runs
+          impactCircleTimers.forEach((id) => window.clearTimeout(id));
+          impactCircleTimers = [];
+          impactCircleEntities.forEach((e) => viewer.entities.remove(e));
+          impactCircleEntities = [];
+          if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
+          if (trailPolylineEntity) { viewer.entities.remove(trailPolylineEntity); trailPolylineEntity = null; }
+          if (tailPolylineEntity) { viewer.entities.remove(tailPolylineEntity); tailPolylineEntity = null; }
+          tailPathPositions = [];
 
           const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
           const impactRadius = asteroidProfile
-            ? Math.max(
-                asteroidProfile.sizeMeters * 500.0,
-                asteroidProfile.joules * JOULE_RADIUS_SCALE
-              )
+            ? Math.max(asteroidProfile.sizeMeters * 500.0, asteroidProfile.joules * JOULE_RADIUS_SCALE)
             : 50000.0;
 
           meteorActive = true;
@@ -270,11 +194,7 @@
           launchButton.textContent = "Meteor in flight";
 
           const startTime = Cesium.JulianDate.now();
-          const stopTime = Cesium.JulianDate.addSeconds(
-            startTime,
-            METEOR.flightSeconds,
-            new Cesium.JulianDate()
-          );
+          const stopTime = Cesium.JulianDate.addSeconds(startTime, METEOR.flightSeconds, new Cesium.JulianDate());
 
           viewer.clock.startTime = startTime.clone();
           viewer.clock.stopTime = stopTime.clone();
@@ -283,99 +203,91 @@
           viewer.clock.multiplier = 1;
           viewer.clock.shouldAnimate = false;
 
-          const positionProperty = new Cesium.SampledPositionProperty();
-          positionProperty.addSample(
-            startTime,
-            Cesium.Cartesian3.fromDegrees(
-              METEOR.startLon,
-              METEOR.startLat,
-              METEOR.startAlt
-            )
-          );
-          positionProperty.addSample(
-            stopTime,
-            Cesium.Cartesian3.fromDegrees(
-              METEOR.endLon,
-              METEOR.endLat,
-              METEOR.endAlt
-            )
-          );
+          // === Build the curved path (trajectory) ==========================
+          const {
+            samples: positionProperty,
+            positionsDegHeights: trailPositionsDegrees,
+            geodesic,
+            surfaceStep,
+            startCarto,
+            endCarto,
+            numPoints
+          } = buildGeodesicPathSamples({
+            startLon: METEOR.startLon, startLat: METEOR.startLat, startAlt: METEOR.startAlt,
+            endLon: METEOR.endLon,     endLat: METEOR.endLat,     endAlt: METEOR.endAlt,
+            flightSeconds: METEOR.flightSeconds,
+            numPoints: 128,
+            startTime
+          });
 
-          const trailPositionsDegrees = [
-            METEOR.startLon,
-            METEOR.startLat,
-            METEOR.startAlt,
-            METEOR.endLon,
-            METEOR.endLat,
-            METEOR.endAlt,
-          ];
+          // === Pre-seed a CURVED pre-tail along the SAME geodesic ==========
+          const p0 = positionProperty.getValue(startTime);
+          const samplesCount   = numPoints; // matches the sampler above
+          const extendDistance = surfaceStep * METEOR.tailExtensionFactor; // meters to extend backward
+          const stepsBack = Math.max(2, Math.min(METEOR.tailMaxPoints - 2, Math.ceil(extendDistance / surfaceStep)));
+
+          tailPathPositions.length = 0; // reset
+          for (let i = stepsBack; i >= 1; i--) {
+            const d = i * surfaceStep; // meters back along the geodesic
+            // NOTE: no fallback — this relies on Cesium supporting negative distances
+            const carto = geodesic.interpolateUsingSurfaceDistance(-d);
+
+            // Continue altitude profile smoothly for t < 0 (tail extends "into space")
+            const tneg = -(i / (samplesCount - 1));
+            const h = METEOR.startAlt * Math.pow(1 - tneg, 1.15) + METEOR.endAlt * (1 - Math.pow(1 - tneg, 1.15));
+
+            tailPathPositions.push(Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, h));
+          }
+          // Ensure the tail ends at the meteor's first position
+          tailPathPositions.push(Cesium.Cartesian3.clone(p0));
+
+          tailPolylineEntity = viewer.entities.add({
+            polyline: {
+              positions: new Cesium.CallbackProperty(() => tailPathPositions, false),
+              width: 6,
+              material: new Cesium.PolylineGlowMaterialProperty({
+                glowPower: 0.2,
+                color: Cesium.Color.ORANGE.withAlpha(0.85),
+              }),
+            },
+          });
+          // =================================================================
 
           const baseEntity = {
             position: positionProperty,
             orientation: new Cesium.VelocityOrientationProperty(positionProperty),
             path: {
-              resolution: 1,
-              leadTime: 0,
-              trailTime: METEOR.trailSeconds,
-              material: new Cesium.PolylineGlowMaterialProperty({
-                color: Cesium.Color.ORANGE,
-                glowPower: 0.25,
-              }),
+              resolution: 1, leadTime: 0, trailTime: METEOR.trailSeconds,
+              material: new Cesium.PolylineGlowMaterialProperty({ color: Cesium.Color.ORANGE, glowPower: 0.25 }),
               width: 8,
             },
           };
 
           const meteorEntity = viewer.entities.add(
             METEOR.useModel
-              ? {
-                  ...baseEntity,
-                  model: {
-                    uri: METEOR.modelUri,
-                    minimumPixelSize: 32,
-                    scale: 1.0,
-                  },
-                }
-              : {
-                  ...baseEntity,
-                  point: {
-                    pixelSize: 12,
-                    color: Cesium.Color.YELLOW.withAlpha(0.95),
-                    outlineColor: Cesium.Color.ORANGE,
-                    outlineWidth: 2,
-                  },
-                }
+              ? { ...baseEntity, model: { uri: METEOR.modelUri, minimumPixelSize: 32, scale: 1.0 } }
+              : { ...baseEntity, point: { pixelSize: 12, color: Cesium.Color.YELLOW.withAlpha(0.95), outlineColor: Cesium.Color.ORANGE, outlineWidth: 2 } }
           );
 
+          // Particle plume attached to meteor orientation
           const trailDuration = METEOR.flightSeconds + 20;
-
-          const trail = new Cesium.ParticleSystem({
+          const plume = new Cesium.ParticleSystem({
             image: makeParticleImage(32),
-            startScale: 1.0,
-            endScale: 0.5,
-            emissionRate: 140,
-            particleLife: trailDuration,
-            speed: 60.0,
-            lifetime: trailDuration,
-            emitter: new Cesium.ConeEmitter(Cesium.Math.toRadians(10)),
-            sizeInMeters: true,
+            startScale: 1.0, endScale: 0.5, emissionRate: 140,
+            particleLife: trailDuration, lifetime: trailDuration, speed: 800.0,
+            emitter: new Cesium.ConeEmitter(Cesium.Math.toRadians(10)), sizeInMeters: true,
           });
-          viewer.scene.primitives.add(trail);
-          activeTrail = trail;
+          viewer.scene.primitives.add(plume);
+          activeTrail = plume;
 
           let burstTimeoutId = null;
           let burstPrimitive = null;
           let preRenderCallback;
 
           const finalize = () => {
-            if (burstTimeoutId !== null) {
-              window.clearTimeout(burstTimeoutId);
-              burstTimeoutId = null;
-            }
+            if (burstTimeoutId !== null) { window.clearTimeout(burstTimeoutId); burstTimeoutId = null; }
             viewer.scene.preRender.removeEventListener(preRenderCallback);
-            if (burstPrimitive) {
-              viewer.scene.primitives.remove(burstPrimitive);
-              burstPrimitive = null;
-            }
+            if (burstPrimitive) { viewer.scene.primitives.remove(burstPrimitive); burstPrimitive = null; }
             viewer.entities.remove(meteorEntity);
             viewer.clock.shouldAnimate = false;
             meteorActive = false;
@@ -385,103 +297,86 @@
 
           const rotationScratch = new Cesium.Matrix3();
           const flipMatrix = Cesium.Matrix3.fromRotationY(Math.PI, new Cesium.Matrix3());
-          const trailMatrix = new Cesium.Matrix4();
+          const plumeMatrix = new Cesium.Matrix4();
 
-          preRenderCallback = function (scene, time) {
+          preRenderCallback = function (_scene, time) {
             const now = time || viewer.clock.currentTime;
-            const position = positionProperty.getValue(now);
-            if (!position) {
-              return;
-            }
+            const position = baseEntity.position.getValue(now);
+            if (!position) return;
 
+            // Update plume transform to follow meteor orientation
             const orientation = meteorEntity.orientation.getValue(now);
             if (orientation) {
               Cesium.Matrix3.fromQuaternion(orientation, rotationScratch);
               Cesium.Matrix3.multiply(rotationScratch, flipMatrix, rotationScratch);
-              Cesium.Matrix4.fromRotationTranslation(rotationScratch, position, trailMatrix);
-              trail.modelMatrix = trailMatrix;
+              Cesium.Matrix4.fromRotationTranslation(rotationScratch, position, plumeMatrix);
+              plume.modelMatrix = plumeMatrix;
             } else {
-              Cesium.Transforms.eastNorthUpToFixedFrame(
-                position,
-                undefined,
-                trailMatrix
-              );
-              trail.modelMatrix = trailMatrix;
+              Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, plumeMatrix);
+              plume.modelMatrix = plumeMatrix;
             }
 
-            const cartographic = Cesium.Ellipsoid.WGS84.cartesianToCartographic(position);
-            const lowAltitude = cartographic ? cartographic.height < 1500.0 : false;
-            const reachedEnd = Cesium.JulianDate.greaterThanOrEquals(now, stopTime);
+            // Grow tail along the *same* path; light decimation + cap
+            const last = tailPathPositions[tailPathPositions.length - 1];
+            if (!last || Cesium.Cartesian3.distance(last, position) > METEOR.tailAddMinDistance) {
+              if (tailPathPositions.length >= METEOR.tailMaxPoints) {
+                // slide window to keep array bounded
+                tailPathPositions.splice(0, Math.floor(METEOR.tailMaxPoints / 10));
+              }
+              tailPathPositions.push(Cesium.Cartesian3.clone(position));
+            }
 
-            if (reachedEnd || lowAltitude) {
+            const reachedEnd = Cesium.JulianDate.greaterThanOrEquals(now, stopTime);
+            if (reachedEnd) {
               viewer.scene.preRender.removeEventListener(preRenderCallback);
 
-              meteorEntity.show = false;
+              // Ensure final point is included in the tail
+              const endCartesian = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt);
+              const lastRecorded = tailPathPositions[tailPathPositions.length - 1];
+              if (!lastRecorded || Cesium.Cartesian3.distance(lastRecorded, endCartesian) > 1.0) {
+                tailPathPositions.push(Cesium.Cartesian3.clone(endCartesian));
+              }
 
+              meteorEntity.show = false;
               viewer.clock.currentTime = stopTime.clone();
 
-              const impactCartesian = Cesium.Cartesian3.fromDegrees(
-                METEOR.endLon,
-                METEOR.endLat,
-                10.0
-              );
+              // Impact burst
+              const impactCartesian = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 10.0);
               burstPrimitive = new Cesium.ParticleSystem({
-                image: makeParticleImage(48),
-                startScale: 2.0,
-                endScale: 6.0,
-                emissionRate: 0,
-                lifetime: 1.6,
-                particleLife: 0.8,
-                speed: 120.0,
-                sizeInMeters: true,
+                image: makeParticleImage(48), startScale: 2.0, endScale: 6.0,
+                emissionRate: 0, lifetime: 1.6, particleLife: 0.8, speed: 120.0, sizeInMeters: true,
                 emitter: new Cesium.SphereEmitter(80.0),
                 modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(impactCartesian),
-                bursts: [
-                  new Cesium.ParticleBurst({
-                    time: 0.0,
-                    minimum: 300,
-                    maximum: 300,
-                  }),
-                ],
+                bursts: [ new Cesium.ParticleBurst({ time: 0.0, minimum: 300, maximum: 300 }) ],
               });
               viewer.scene.primitives.add(burstPrimitive);
 
+              // Permanent full-path polyline (matches trajectory exactly)
               if (!trailPolylineEntity) {
                 trailPolylineEntity = viewer.entities.add({
                   polyline: {
-                    positions: Cesium.Cartesian3.fromDegreesArrayHeights(
-                      trailPositionsDegrees
-                    ),
+                    positions: Cesium.Cartesian3.fromDegreesArrayHeights(trailPositionsDegrees),
                     width: 6,
                     material: new Cesium.PolylineGlowMaterialProperty({
-                      glowPower: 0.2,
-                      color: Cesium.Color.ORANGE.withAlpha(0.85),
+                      glowPower: 0.2, color: Cesium.Color.ORANGE.withAlpha(0.85),
                     }),
                   },
                 });
               }
 
+              // Expanding impact rings
               if (impactCircleEntities.length === 0) {
-                const circleCount = 5;
-                const delayMs = 1000;
+                const circleCount = 5, delayMs = 1000;
                 const radiusStep = impactRadius / circleCount;
-                for (let i = 0; i < circleCount; i += 1) {
+                for (let i = 0; i < circleCount; i++) {
                   const timerId = window.setTimeout(() => {
                     const radius = radiusStep * (i + 1);
                     const circle = viewer.entities.add({
-                      position: Cesium.Cartesian3.fromDegrees(
-                        METEOR.endLon,
-                        METEOR.endLat,
-                        METEOR.endAlt
-                      ),
+                      position: Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt),
                       ellipse: {
-                        semiMajorAxis: radius,
-                        semiMinorAxis: radius,
-                        height: METEOR.endAlt,
+                        semiMajorAxis: radius, semiMinorAxis: radius, height: METEOR.endAlt,
                         material: Cesium.Color.RED.withAlpha(0.25 + i * 0.12),
-                        outline: true,
-                        outlineColor: Cesium.Color.RED.withAlpha(0.6 + i * 0.08),
-                        outlineWidth: 3,
+                        outline: true, outlineColor: Cesium.Color.RED.withAlpha(0.6 + i * 0.08), outlineWidth: 3,
                       },
                     });
                     impactCircleEntities.push(circle);
@@ -490,43 +385,99 @@
                 }
               }
 
-              burstTimeoutId = window.setTimeout(() => {
-                finalize();
-              }, 2000);
-              // camera movement annoying, don't change camera location
-              // if (viewer && viewer.camera) {
-              //   viewer.camera.flyTo({
-              //     destination: Cesium.Cartesian3.fromDegrees(
-              //       METEOR.endLon,
-              //       METEOR.endLat,
-              //       900000.0
-              //     ),
-              //     orientation: { pitch: Cesium.Math.toRadians(-35) },
-              //     duration: 2.0,
-              //   });
-              // }
+              burstTimeoutId = window.setTimeout(finalize, 2000);
             }
           };
 
           viewer.scene.preRender.addEventListener(preRenderCallback);
-
-          viewer.clock.shouldAnimate = true;
-
-          // if (viewer && viewer.camera) {
-          //   viewer.camera.flyTo({
-          //     destination: Cesium.Cartesian3.fromDegrees(
-          //       METEOR.startLon,
-          //       METEOR.startLat,
-          //       1500000.0
-          //     ),
-          //     orientation: { pitch: Cesium.Math.toRadians(-25) },
-          //     duration: 2.0,
-          //   });
-          // }
+          viewer.clock.shouldAnimate = true; // Go!
         }
 
-        if (launchButton) {
-          launchButton.addEventListener("click", startMeteorRun);
+        if (launchButton) launchButton.addEventListener("click", startMeteorRun);
+
+        // === Developer camera capture tool ===
+        const captureBtn = document.getElementById("captureLocation");
+        const devPanel   = document.getElementById("devPanel");
+        const codePre    = document.getElementById("devCameraCode");
+        const copyBtn    = document.getElementById("copyCameraCode");
+        const useBtn     = document.getElementById("useAsStart");
+        const clearBtn   = document.getElementById("clearStart");
+
+        function captureCamera() {
+          const cam = viewer.scene.camera;
+          // Position (cartographic)
+          const carto = Cesium.Ellipsoid.WGS84.cartesianToCartographic(cam.position);
+          const lon = Cesium.Math.toDegrees(carto.longitude);
+          const lat = Cesium.Math.toDegrees(carto.latitude);
+          const height = carto.height;
+          // Orientation (radians)
+          const heading = cam.heading;
+          const pitch   = cam.pitch;
+          const roll    = cam.roll;
+
+          const snippet = `viewer.scene.camera.setView({
+  destination: Cesium.Cartesian3.fromDegrees(${lon.toFixed(6)}, ${lat.toFixed(6)}, ${height.toFixed(2)}),
+  orientation: {
+    heading: ${heading.toFixed(6)},
+    pitch: ${pitch.toFixed(6)},
+    roll: ${roll.toFixed(6)}
+  }
+});`;
+
+          codePre.textContent = snippet;
+          devPanel.style.display = "block";
+
+          // Persist the latest capture for convenience
+          const jsonCfg = {
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+            orientation: { heading, pitch, roll }
+          };
+          // We can't store Cartesian3 directly (circular); store a serializable object
+          localStorage.setItem("devCameraCapture", JSON.stringify({
+            destination: { lon, lat, height },
+            orientation: { heading, pitch, roll }
+          }));
+        }
+
+        captureBtn?.addEventListener("click", captureCamera);
+
+        copyBtn?.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(codePre.textContent || "");
+            copyBtn.textContent = "Copied!"; setTimeout(() => (copyBtn.textContent = "Copy"), 1200);
+          } catch { /* ignore */ }
+        });
+
+        useBtn?.addEventListener("click", () => {
+          try {
+            const raw = localStorage.getItem("devCameraCapture");
+            if (!raw) return;
+            const cap = JSON.parse(raw);
+            const cfg = {
+              destination: Cesium.Cartesian3.fromDegrees(cap.destination.lon, cap.destination.lat, cap.destination.height),
+              orientation: cap.orientation,
+            };
+            // Save for next loads
+            localStorage.setItem("devCameraStart", JSON.stringify({
+              destination: { lon: cap.destination.lon, lat: cap.destination.lat, height: cap.destination.height },
+              orientation: cap.orientation,
+            }));
+            // Apply immediately
+            viewer.scene.camera.setView(cfg);
+            useBtn.textContent = "Saved ✓"; setTimeout(() => (useBtn.textContent = "Use as Start"), 1200);
+          } catch { /* ignore */ }
+        });
+
+        clearBtn?.addEventListener("click", () => {
+          localStorage.removeItem("devCameraStart");
+          clearBtn.textContent = "Cleared"; setTimeout(() => (clearBtn.textContent = "Clear Saved Start"), 1200);
+        });
+
+        // Initial camera (used if no saved start camera is present)
+        if (!localStorage.getItem("devCameraStart")) {
+          viewer.scene.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(-90, 35, 20_000_000),
+          });
         }
       })();
     </script>
