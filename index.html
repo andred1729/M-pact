@@ -217,8 +217,8 @@
         let speedMult = Number(speedSlider?.value || 1.0);
         speedSlider?.addEventListener("input", () => {
           speedMult = Number(speedSlider.value);
-          speedVal.textContent = speedMult.toFixed(1) + '×';
-          viewer.clock.multiplier = speedMult;
+          speedVal.textContent = speedMult*32000 + 'mph';
+          viewer.clock.multiplier = speedMult* (5/6);
         });
 
         let meteorActive = false;
