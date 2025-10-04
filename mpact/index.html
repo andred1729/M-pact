@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cesium Asteroid</title>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <!-- The CSS that makes the Cesium viewer full-screen -->
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+    </style>
+
+    <!-- Link the CesiumJS library -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.134/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.134/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+
+    <!-- Link your custom JavaScript file -->
+    <script src="js/main.js"></script>
+</body>
+</html>
+
