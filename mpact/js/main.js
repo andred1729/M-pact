@@ -139,16 +139,17 @@ function addAsteroid({
       leadTime: 0,
       trailTime
     }),
-    description: new Cesium.CallbackProperty((time) => {
-      const p = position.getValue(time);
-      if (!p) return name;
-      const c = Cesium.Cartographic.fromCartesian(p);
-      return `<h3>${name}</h3>
-              Lat/Lon: ${Cesium.Math.toDegrees(c.latitude).toFixed(2)}°, ${Cesium.Math.toDegrees(c.longitude).toFixed(2)}°<br>
-              Alt: ${(c.height/1000).toFixed(0)} km<br>
-              Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
-              Diameter: ${sizeMeters.toFixed(0)} m`;
-    }, false)
+    description: "Hello"
+    // description: new Cesium.CallbackProperty((time) => {
+    //   const p = position.getValue(time);
+    //   if (!p) return name;
+    //   const c = Cesium.Cartographic.fromCartesian(p);
+    //   return `<h3>${name}</h3>
+    //           Lat/Lon: ${Cesium.Math.toDegrees(c.latitude).toFixed(2)}°, ${Cesium.Math.toDegrees(c.longitude).toFixed(2)}°<br>
+    //           Alt: ${(c.height/1000).toFixed(0)} km<br>
+    //           Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
+    //           Diameter: ${sizeMeters.toFixed(0)} m`;
+    // }, false)
   });
 
   e.mpactData = {
@@ -256,6 +257,7 @@ const specs = [
 const asteroids = specs.map(s => addAsteroid(s));
 
 
+
 /*
 // --- Orbit parameters (edit these) ---
 const mu = 3.986004418e14;       // Earth GM [m^3/s^2]
@@ -321,14 +323,51 @@ function setSelection(entity) {
   currentSelection = data;
   btn.disabled = !data;
   updateSelectionDisplay(data);
-  viewer.trackedEntity = data ? entity : undefined;
-  if (data && entity) {
-    viewer.flyTo(entity, { duration: 1.5, maximumHeight: 8e7 });
-  }
+  // viewer.trackedEntity = data ? entity : undefined;
 }
 
 viewer.selectedEntityChanged.addEventListener(setSelection);
 setSelection(viewer.selectedEntity || null);
+
+// make the outer iframe itself transparent (so the chrome shows through)
+viewer.infoBox.frame.style.background = 'transparent';
+
+// function to inject CSS into the infoBox iframe
+function restyleInfoBoxFrame() {
+  const doc = viewer.infoBox.frame?.contentDocument;
+  if (!doc) return;
+  // avoid duplicating
+  if (doc.getElementById('injected-dark-infobox')) return;
+
+  const style = doc.createElement('style');
+  style.id = 'injected-dark-infobox';
+  style.textContent = `
+    html, body {
+      background: transparent !important;   /* or a dark color if you prefer */
+      color: #e6e6e6 !important;
+    }
+    .cesium-infoBox-description {
+      background: transparent !important;
+      color: inherit !important;
+    }
+    a { color: #8bd3ff !important; }
+    table, th, td { background: transparent !important; color: inherit !important; }
+  `;
+  doc.head.appendChild(style);
+
+  // belt & suspenders:
+  doc.body.style.background = 'transparent';
+}
+
+// inject once when the iframe initially loads
+viewer.infoBox.frame.addEventListener('load', restyleInfoBoxFrame);
+
+// re-inject whenever the selected entity changes (some content updates can refresh the iframe)
+viewer.selectedEntityChanged.addEventListener(() => {
+  // give Cesium a tick to update the iframe document
+  setTimeout(restyleInfoBoxFrame, 0);
+});
+
 
 btn.addEventListener('click', () => {
   if (!currentSelection) {
