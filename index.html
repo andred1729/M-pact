@@ -37,6 +37,11 @@
       <div style="display:flex; gap:.5rem; flex-wrap:wrap">
         <button id="launchMeteor" type="button">Launch Meteor</button>
         <button id="captureLocation" type="button" title="Capture the current camera as code">Capture Location</button>
+        <button id="pickImpact" type="button" title="Click on the globe to set the impact point">Pick Impact</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:.5rem; font-size:.85rem; margin-top:.35rem">
+        <strong style="font-weight:600">Impact:</strong>
+        <span id="impactDisplay">--</span>
       </div>
       <div style="display:flex; align-items:center; gap:.6rem; margin-top:.35rem">
         <label for="impactAngle" style="font-size:.85rem; color:#c8d6e5">Impact angle:</label>
@@ -125,6 +130,12 @@
         const targetCity = CITIES[METEOR.targetCity];
         METEOR.endLon = targetCity ? targetCity.lon : -90.0;
         METEOR.endLat = targetCity ? targetCity.lat : 33.0;
+        // reflect defaults in UI
+        // (impactDisplay is created later; safe to update again once available)
+        setTimeout(() => {
+          const el = document.getElementById('impactDisplay');
+          if (el) el.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
+        }, 0);
 
         // === Curved path helper (great-circle + altitude profile) ==========
         function buildGeodesicPathSamples(opts) {
@@ -213,7 +224,8 @@
         let meteorActive = false;
         let impactCircleEntities = [];
         let impactCircleTimers = [];
-        let activeTrail = null;           // mutable positions array for CallbackProperty
+        let activeTrail = null;
+        let trajectoryEntity = null;  // persistent path shown after impact until replay           // mutable positions array for CallbackProperty
 
         function startMeteorRun() {
           if (!launchButton) { console.error("Launch Meteor button is missing."); return; }
@@ -225,6 +237,7 @@
           impactCircleEntities.forEach((e) => viewer.entities.remove(e));
           impactCircleEntities = [];
           if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
+          if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; }
           
 
           const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
@@ -235,6 +248,7 @@
           meteorActive = true;
           launchButton.disabled = true;
           launchButton.textContent = "Meteor in flight";
+          if (pickBtn) pickBtn.disabled = true;
 
           const startTime = Cesium.JulianDate.now();
           const stopTime = Cesium.JulianDate.addSeconds(startTime, METEOR.flightSeconds, new Cesium.JulianDate());
@@ -319,6 +333,7 @@
             viewer.clock.shouldAnimate = false;
             meteorActive = false;
             launchButton.disabled = false;
+            if (pickBtn) pickBtn.disabled = false;
             launchButton.textContent = "Replay Meteor";
           };
 
@@ -349,6 +364,18 @@
 
               meteorEntity.show = false;
               viewer.clock.currentTime = stopTime.clone();
+
+              // Persistent trajectory polyline (kept until next run)
+              trajectoryEntity = viewer.entities.add({
+                polyline: {
+                  positions: Cesium.Cartesian3.fromDegreesArrayHeights(trailPositionsDegrees),
+                  width: 6,
+                  material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: 0.2,
+                    color: Cesium.Color.ORANGE.withAlpha(0.85),
+                  }),
+                },
+              });
 
               // Impact burst
               const impactCartesian = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 10.0);
@@ -392,6 +419,51 @@
         }
 
         if (launchButton) launchButton.addEventListener("click", startMeteorRun);
+
+        // === Impact picking (click anywhere to set endLon/Lat) ===
+        const pickBtn = document.getElementById("pickImpact");
+        const impactDisp = document.getElementById("impactDisplay");
+        let pickingImpact = false;
+        let impactMarker = null;
+
+        function updateImpactDisplay() {
+          if (impactDisp) impactDisp.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
+        }
+        updateImpactDisplay();
+
+        const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        pickBtn?.addEventListener("click", () => {
+          pickingImpact = !pickingImpact;
+          pickBtn.textContent = pickingImpact ? "Click on globe…" : "Pick Impact";
+          viewer.canvas.style.cursor = pickingImpact ? "crosshair" : "";
+        });
+
+        clickHandler.setInputAction((evt) => {
+          if (!pickingImpact) return;
+          const ray = viewer.scene.camera.getPickRay(evt.position);
+          const cart = viewer.scene.globe.pick(ray, viewer.scene);
+          if (!cart) { pickingImpact = false; pickBtn.textContent = "Pick Impact"; viewer.canvas.style.cursor = ""; return; }
+          const carto = Cesium.Cartographic.fromCartesian(cart);
+          METEOR.endLon = Cesium.Math.toDegrees(carto.longitude);
+          METEOR.endLat = Cesium.Math.toDegrees(carto.latitude);
+          updateImpactDisplay();
+
+          if (!impactMarker) {
+            impactMarker = viewer.entities.add({
+              position: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, METEOR.endAlt),
+              point: { pixelSize: 10, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 }
+            });
+          } else {
+            impactMarker.position = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, METEOR.endAlt);
+          }
+
+          pickingImpact = false;
+          pickBtn.textContent = "Pick Impact";
+          viewer.canvas.style.cursor = "";
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        // === End impact picking ===
+
+        // === Developer camera capture tool ===
 
         // === Developer camera capture tool ===
         const captureBtn = document.getElementById("captureLocation");
