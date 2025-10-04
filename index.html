@@ -619,12 +619,19 @@
         viewer.clock.shouldAnimate = false;
 
         // ==== Meteor: drop-in script integration ====
+        // Predetermined cities (extend as needed)
+        const CITIES = {
+          chicago: { lat: 41.8832, lon: -87.6324 },
+        };
+
         const METEOR = {
           startLon: -99.0,
           startLat: 52.0,
-          startAlt: 120000.0,
-          endLon: -90.0,
-          endLat: 33.0,
+          startAlt: 12000000.0,
+          // Select target city (currently only 'chicago')
+          targetCity: 'chicago',
+          endLon: CITIES.chicago.lon,
+          endLat: CITIES.chicago.lat,
           endAlt: 1000.0,
           flightSeconds: 12,
           trailSeconds: 20,
@@ -868,17 +875,17 @@
 
           viewer.clock.shouldAnimate = true;
 
-          if (viewer && viewer.camera) {
-            viewer.camera.flyTo({
-              destination: Cesium.Cartesian3.fromDegrees(
-                METEOR.startLon,
-                METEOR.startLat,
-                1500000.0
-              ),
-              orientation: { pitch: Cesium.Math.toRadians(-25) },
-              duration: 2.0,
-            });
-          }
+          // if (viewer && viewer.camera) {
+          //   viewer.camera.flyTo({
+          //     destination: Cesium.Cartesian3.fromDegrees(
+          //       METEOR.startLon,
+          //       METEOR.startLat,
+          //       1500000.0
+          //     ),
+          //     orientation: { pitch: Cesium.Math.toRadians(-25) },
+          //     duration: 2.0,
+          //   });
+          // }
         }
 
         if (launchButton) {
