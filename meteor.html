@@ -23,11 +23,22 @@
       }
       .overlay button:hover:enabled { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(33,150,243,.4); }
       .overlay button:disabled { opacity: .6; cursor: default; box-shadow: none; }
-      .credits {
-        position: absolute; bottom: 1rem; right: 1rem; font-size: .8rem; color: rgba(220,230,244,.7); background: rgba(15,23,42,.65);
-        padding: .4rem .75rem; border-radius: 999px; border: 1px solid rgba(100,116,139,.4); backdrop-filter: blur(4px);
-      }
-          .overlay button.small{ padding:.35rem .75rem; font-size:.8rem; }
+      .overlay button.small{ padding:.35rem .75rem; font-size:.8rem; }
+
+      /* Center blurb */
+      .center-blurb { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 12;
+        background: rgba(15,23,42,.7); border: 1px solid rgba(255,99,71,.5); border-radius: .85rem; padding: .85rem 1.1rem;
+        font-weight: 600; letter-spacing: .015em; box-shadow: 0 14px 40px rgba(0,0,0,.35); text-align: center; }
+
+      /* Red simulate button */
+      .btn-red { background: linear-gradient(120deg,#ef4444,#dc2626) !important; border-color: rgba(255,99,71,.55) !important; color: #fff !important;
+        box-shadow: 0 10px 24px rgba(239,68,68,.45) !important; }
+      .btn-red:hover:enabled { box-shadow: 0 14px 28px rgba(239,68,68,.55) !important; }
+      .btn-pulse { animation: pulseGlow 1.2s ease-in-out infinite; }
+      @keyframes pulseGlow { 0%{ box-shadow: 0 0 0 0 rgba(239,68,68,.6);} 70%{ box-shadow: 0 0 0 12px rgba(239,68,68,0);} 100%{ box-shadow: 0 0 0 0 rgba(239,68,68,0);} }
+
+      .credits { position: absolute; bottom: 1rem; right: 1rem; font-size: .8rem; color: rgba(220,230,244,.7); background: rgba(15,23,42,.65);
+        padding: .4rem .75rem; border-radius: 999px; border: 1px solid rgba(100,116,139,.4); backdrop-filter: blur(4px); }
     </style>
   </head>
   <body>
@@ -37,9 +48,8 @@
       <div style="font-size:.85rem; color:#fcd34d; font-weight:500;">Asteroid: <span id="selectedAsteroidLabel">Default profile</span></div>
       <div id="selectedAsteroidStats" style="font-size:.78rem; color:#9ca3af;">Energy ~0.4 PJ · Diameter ~20 m</div>
       <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
-        <button id="launchMeteor" type="button">Launch Meteor</button>
+        <button id="launchMeteor" type="button" class="btn-red" disabled>Simulate</button>
         <button id="returnToSelection" type="button" class="small">Back to Selection</button>
-        <button id="captureLocation" type="button" title="Capture the current camera as code">Capture Location</button>
         <button id="pickImpact" type="button" title="Click on the globe to set the impact point">Pick Impact</button>
       </div>
       <div style="display:flex; align-items:center; gap:.5rem; font-size:.85rem; margin-top:.35rem">
@@ -56,7 +66,7 @@
         <input id="speedMultiplier" type="range" min="0.2" max="5" step="0.1" value="1.0" style="flex:1" />
         <span id="speedMultiplierVal" style="min-width:2.5rem; text-align:right; font-variant-tabular-nums:tabular-nums">1.0×</span>
       </div>
-      <div id="devPanel" style="display:none; margin-top:.75rem;"> style="display:none; margin-top:.75rem;">
+      <div id="devPanel" style="display:none; margin-top:.75rem;">
         <div style="font-size:.8rem; opacity:.9; margin: .25rem 0 .4rem 0;">Captured camera code:</div>
         <pre id="devCameraCode" style="margin:0; padding:.75rem; background:rgba(2,8,23,.6); border:1px solid rgba(125,211,252,.25); border-radius:.5rem; overflow:auto; max-height:10rem;"></pre>
         <div style="display:flex; gap:.5rem; margin-top:.5rem;">
@@ -66,6 +76,10 @@
         </div>
       </div>
     </div>
+
+    <!-- Center prompt shown on first load until an impact point is chosen -->
+    <div id="centerBlurb" class="center-blurb">Choose impact location</div>
+
     <div id="cesiumContainer"></div>
     <div class="credits">Powered by CesiumJS + OpenStreetMap imagery</div>
 
@@ -177,7 +191,6 @@
         METEOR.endLon = targetCity ? targetCity.lon : -90.0;
         METEOR.endLat = targetCity ? targetCity.lat : 33.0;
         // reflect defaults in UI
-        // (impactDisplay is created later; safe to update again once available)
         setTimeout(() => {
           const el = document.getElementById('impactDisplay');
           if (el) el.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
@@ -208,7 +221,6 @@
 
             const pos = Cesium.Cartesian3.fromRadians(p.longitude, p.latitude, h);
             samples.addSample(when, pos);
-
           }
 
           samples.setInterpolationOptions({
@@ -268,15 +280,43 @@
         let meteorActive = false;
         let impactCircleEntities = [];
         let impactCircleTimers = [];
+        let epicenterSpheres = [];
         let activeTrail = null;
         let trajectoryEntity = null; // persistent path shown until next run
         let trajectoryPositions = []; // updated in real time to extend the trail
+        
+        function adddot(){
+
+        }
+        function clearEpicenterSpheres() {
+          epicenterSpheres.forEach((e) => viewer.entities.remove(e));
+          epicenterSpheres = [];
+        }
+        function createEpicenterSpheres() {
+          clearEpicenterSpheres();
+          const radii = [60, 120, 200, 300]; // very small concentric spheres (meters)
+          const pos = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt);
+          radii.forEach((r, i) => {
+            const ent = viewer.entities.add({
+              position: pos,
+              ellipsoid: {
+                radii: new Cesium.Cartesian3(r, r, r),
+                material: Cesium.Color.ORANGE.withAlpha(0.22 + i * 0.12),
+                outline: true,
+                outlineColor: Cesium.Color.ORANGE.withAlpha(0.65 + i * 0.06),
+                stackPartitions: 16,
+                slicePartitions: 16,
+              },
+            });
+            epicenterSpheres.push(ent);
+          });
+        }
 
         function startMeteorRun() {
-          if (!launchButton) { console.error("Launch Meteor button is missing."); return; }
+          if (!launchButton) { console.error("Simulate button is missing."); return; }
           if (meteorActive) return;
 
-          // Cleanup from prior runs
+          // Cleanup from prior runs (keep epicenter spheres; they're persistent around the impact site)
           impactCircleTimers.forEach((id) => window.clearTimeout(id));
           impactCircleTimers = [];
           impactCircleEntities.forEach((e) => viewer.entities.remove(e));
@@ -285,14 +325,15 @@
           if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; }
           trajectoryPositions = [];
 
+          launchButton.disabled = true;
+          launchButton.classList.remove('btn-pulse');
+
           const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
           const impactRadius = asteroidProfile
             ? Math.max(asteroidProfile.sizeMeters * 500.0, asteroidProfile.joules * JOULE_RADIUS_SCALE)
             : 50000.0;
 
           meteorActive = true;
-          launchButton.disabled = true;
-          launchButton.textContent = "Meteor in flight";
           if (pickBtn) pickBtn.disabled = true;
 
           const startTime = Cesium.JulianDate.now();
@@ -306,7 +347,6 @@
           viewer.clock.shouldAnimate = false;
 
           // === Build the curved path (trajectory) ==========================
-          // First, establish geodesic to compute surface distance for angle math
           const tmpGeodesic = new Cesium.EllipsoidGeodesic(
             Cesium.Cartographic.fromDegrees(METEOR.startLon, METEOR.startLat),
             Cesium.Cartographic.fromDegrees(METEOR.endLon, METEOR.endLat)
@@ -315,7 +355,6 @@
           const angleRad = Cesium.Math.toRadians(Math.min(85, Math.max(0, impactAngleDeg)));
 
           // Choose start altitude so that dh/ds at end matches -tan(angle)
-          // For a linear profile (altExponent = 1), dh/ds = -(startAlt - endAlt)/L
           const startAltForAngle = METEOR.endAlt + L * Math.tan(angleRad);
 
           const {
@@ -360,17 +399,6 @@
             Cesium.Cartesian3.clone(startCartesian),
           ];
 
-          trajectoryEntity = viewer.entities.add({
-            polyline: {
-              positions: new Cesium.CallbackProperty(() => trajectoryPositions, false),
-              width: 6,
-              material: new Cesium.PolylineGlowMaterialProperty({
-                glowPower: 0.2,
-                color: Cesium.Color.ORANGE.withAlpha(0.85),
-              }),
-            },
-          });
-
           const baseEntity = {
             position: positionProperty,
             orientation: new Cesium.VelocityOrientationProperty(positionProperty),
@@ -411,9 +439,11 @@
             viewer.entities.remove(meteorEntity);
             viewer.clock.shouldAnimate = false;
             meteorActive = false;
-            launchButton.disabled = false;
             if (pickBtn) pickBtn.disabled = false;
-            launchButton.textContent = "Replay Meteor";
+            launchButton.disabled = false;
+            launchButton.classList.add('btn-pulse');
+            // Ensure spheres are present at the epicenter
+            createEpicenterSpheres();
           };
 
           const rotationScratch = new Cesium.Matrix3();
@@ -473,6 +503,7 @@
               });
               viewer.scene.primitives.add(burstPrimitive);
 
+              // Expanding 2D shock rings (keep existing visual)
               if (impactCircleEntities.length === 0) {
                 const circleCount = 5, delayMs = 1000;
                 const radiusStep = impactRadius / circleCount;
@@ -501,24 +532,27 @@
           viewer.clock.shouldAnimate = true; // Go!
         }
 
-        if (launchButton) launchButton.addEventListener("click", startMeteorRun);
-
         // === Impact picking (click anywhere to set endLon/Lat) ===
         const pickBtn = document.getElementById("pickImpact");
         const impactDisp = document.getElementById("impactDisplay");
-        let pickingImpact = false;
-        let impactMarker = null;
+        const centerBlurb = document.getElementById("centerBlurb");
 
         function updateImpactDisplay() {
           if (impactDisp) impactDisp.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
         }
         updateImpactDisplay();
 
+        // Start in picking mode immediately
+        let pickingImpact = true;
+        pickBtn && (pickBtn.textContent = "Click on globe…");
+        viewer.canvas.style.cursor = "crosshair";
+
         const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
         pickBtn?.addEventListener("click", () => {
           pickingImpact = !pickingImpact;
           pickBtn.textContent = pickingImpact ? "Click on globe…" : "Pick Impact";
           viewer.canvas.style.cursor = pickingImpact ? "crosshair" : "";
+          if (pickingImpact && centerBlurb) centerBlurb.style.display = 'block';
         });
 
         clickHandler.setInputAction((evt) => {
@@ -531,112 +565,22 @@
           METEOR.endLat = Cesium.Math.toDegrees(carto.latitude);
           updateImpactDisplay();
 
-          if (!impactMarker) {
-            impactMarker = viewer.entities.add({
-              position: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, METEOR.endAlt),
-              point: { pixelSize: 10, color: Cesium.Color.CYAN, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 }
-            });
-          } else {
-            impactMarker.position = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, METEOR.endAlt);
-          }
+          // Create/update small concentric spheres at epicenter
+          createEpicenterSpheres();
+
+          // UI feedback: enable Simulate button and hide center blurb
+          if (centerBlurb) { centerBlurb.textContent = 'Set Meteor Landing Location'; setTimeout(() => (centerBlurb.style.display = 'none'), 600); }
+          if (launchButton) { launchButton.disabled = false; launchButton.classList.add('btn-pulse'); }
 
           pickingImpact = false;
-          pickBtn.textContent = "Pick Impact";
+          pickBtn && (pickBtn.textContent = "Pick Impact");
           viewer.canvas.style.cursor = "";
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
         // === End impact picking ===
 
-        // === Developer camera capture tool ===
+        if (launchButton) launchButton.addEventListener("click", startMeteorRun);
 
-        // === Developer camera capture tool ===
-        const captureBtn = document.getElementById("captureLocation");
-        const devPanel   = document.getElementById("devPanel");
-        const codePre    = document.getElementById("devCameraCode");
-        const copyBtn    = document.getElementById("copyCameraCode");
-        const useBtn     = document.getElementById("useAsStart");
-        const clearBtn   = document.getElementById("clearStart");
 
-        function captureCamera() {
-          const cam = viewer.scene.camera;
-          // Position (cartographic)
-          const carto = Cesium.Ellipsoid.WGS84.cartesianToCartographic(cam.position);
-          const lon = Cesium.Math.toDegrees(carto.longitude);
-          const lat = Cesium.Math.toDegrees(carto.latitude);
-          const height = carto.height;
-          // Orientation (radians)
-          const heading = cam.heading;
-          const pitch   = cam.pitch;
-          const roll    = cam.roll;
-
-          const snippet = `viewer.scene.camera.setView({
-  destination: Cesium.Cartesian3.fromDegrees(${lon.toFixed(6)}, ${lat.toFixed(6)}, ${height.toFixed(2)}),
-  orientation: {
-    heading: ${heading.toFixed(6)},
-    pitch: ${pitch.toFixed(6)},
-    roll: ${roll.toFixed(6)}
-  }
-});`;
-
-          codePre.textContent = snippet;
-          devPanel.style.display = "block";
-
-          // Persist the latest capture for convenience
-          const jsonCfg = {
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
-            orientation: { heading, pitch, roll }
-          };
-          // We can't store Cartesian3 directly (circular); store a serializable object
-          localStorage.setItem("devCameraCapture", JSON.stringify({
-            destination: { lon, lat, height },
-            orientation: { heading, pitch, roll }
-          }));
-        }
-
-        captureBtn?.addEventListener("click", captureCamera);
-
-        copyBtn?.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(codePre.textContent || "");
-            copyBtn.textContent = "Copied!"; setTimeout(() => (copyBtn.textContent = "Copy"), 1200);
-          } catch { /* ignore */ }
-        });
-
-        useBtn?.addEventListener("click", () => {
-          try {
-            const raw = localStorage.getItem("devCameraCapture");
-            if (!raw) return;
-            const cap = JSON.parse(raw);
-            const cfg = {
-              destination: Cesium.Cartesian3.fromDegrees(cap.destination.lon, cap.destination.lat, cap.destination.height),
-              orientation: cap.orientation,
-            };
-            // Save for next loads
-            localStorage.setItem("devCameraStart", JSON.stringify({
-              destination: { lon: cap.destination.lon, lat: cap.destination.lat, height: cap.destination.height },
-              orientation: cap.orientation,
-            }));
-            // Apply immediately
-            viewer.scene.camera.setView(cfg);
-            useBtn.textContent = "Saved ✓"; setTimeout(() => (useBtn.textContent = "Use as Start"), 1200);
-          } catch { /* ignore */ }
-        });
-
-        clearBtn?.addEventListener("click", () => {
-          localStorage.removeItem("devCameraStart");
-          clearBtn.textContent = "Cleared"; setTimeout(() => (clearBtn.textContent = "Clear Saved Start"), 1200);
-        });
-
-        // Initial camera (used if no saved start camera is present)
-        if (!localStorage.getItem("devCameraStart")) {
-          const cityCam = targetCity && targetCity.cameraStart;
-          if (cityCam) {
-            applyCameraFromConfig(cityCam);
-          } else {
-            viewer.scene.camera.setView({
-              destination: Cesium.Cartesian3.fromDegrees(-90, 35, 20_000_000),
-            });
-          }
-        }
       })();
     </script>
   </body>

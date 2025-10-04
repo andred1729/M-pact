@@ -19,7 +19,31 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
   infoBox: true,
   terrain: Cesium.Terrain.fromWorldTerrain({ requestWaterMask: true }),
 });
+viewer.infoBox.frame.addEventListener("load", () => {
+  const doc = viewer.infoBox.frame.contentDocument;
+  if (!doc) return;
 
+  const style = doc.createElement("style");
+  style.textContent = `
+    :root { color-scheme: light dark; }
+    html, body {
+      margin: 0;
+      padding: 8px;
+      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #ffffff;
+      color: #111111;
+    }
+    h3 { margin: 0 0 .5em; font-size: 16px; color: inherit; }
+    a { color: #0b5cff; }
+    code, pre { background: rgba(0,0,0,.06); padding: .1em .3em; border-radius: 4px; }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #0b0f14; color: #eaf1ff; }
+      a { color: #8fc7ff; }
+      code, pre { background: rgba(255,255,255,.08); }
+    }
+  `;
+  doc.head.appendChild(style);
+});
 const STORAGE_KEY = 'mpact:selectedAsteroid';
 const selectedNameEl = document.getElementById('selectedAsteroidName');
 
