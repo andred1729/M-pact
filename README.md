@@ -1,6 +1,6 @@
 # Globe Simulator
 
-A minimalist CesiumJS setup that renders an interactive 3D globe packed with the Geometry & Appearance demo entities. It prefers Cesium Ion resources when a token is supplied, but can fall back to open OpenStreetMap imagery so the showcase runs out of the box.
+A minimalist CesiumJS setup that renders an interactive 3D globe packed with the Geometry & Appearance demo entities plus a scripted meteor re-entry. It prefers Cesium Ion resources when a token is supplied, but can fall back to open OpenStreetMap imagery so the showcase runs out of the box.
 
 ## Getting started
 
@@ -26,6 +26,11 @@ A minimalist CesiumJS setup that renders an interactive 3D globe packed with the
 - Drag with the mouse (or right-click + drag) to orbit and tilt.
 - Scroll or pinch to zoom in and out of the analytic geometries.
 - Double-click an object to focus and zoom the camera on it.
+- Click `Launch Meteor` to watch the meteor streak from Canada toward the southeast United States.
+
+## Meteor configuration
+
+Tweak the `METEOR` settings inside `index.html` to change the launch/impact coordinates, flight duration, or swap in a glTF via `modelUri`. Trigger the updated sequence with the `Launch Meteor` button — the script drives Cesium’s clock, samples the trajectory, spawns a glowing trail, and triggers an impact burst when altitude drops below ~1.5 km or the flight time completes.
 
 The default scene mirrors Cesium’s Geometry & Appearance showcase, so you can inspect rectangles, corridors, polyline volumes, and other primitives that we’ll build on for meteor dynamics.
 

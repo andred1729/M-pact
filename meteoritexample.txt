@@ -1,0 +1,206 @@
+// ==== Meteor: drop-in script (paste below your existing setup) ====
+
+// --- CONFIG (edit these) ---
+const METEOR = {
+  startLon: -99.0,  // launch point (deg)
+  startLat:  52.0,
+  startAlt: 120000.0, // meters (≈120 km)
+  endLon:   -90.0,  // impact point (deg)
+  endLat:    33.0,
+  endAlt:    1000.0, // meters above ellipsoid/terrain estimate
+  flightSeconds: 12, // total time
+  trailSeconds:  20, // length of visible trail behind meteor
+  useModel: false,   // set true and provide `modelUri` to use a glTF
+  modelUri: "/models/asteroid.glb",
+};
+
+// --- Clock window for the animation ---
+const __start = Cesium.JulianDate.now();
+const __stop  = Cesium.JulianDate.addSeconds(__start, METEOR.flightSeconds, new Cesium.JulianDate());
+viewer.clock.startTime = __start.clone();
+viewer.clock.stopTime  = __stop.clone();
+viewer.clock.currentTime = __start.clone();
+viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
+viewer.clock.multiplier = 1;
+
+// --- Timed path (SampledPositionProperty) ---
+const __pos = new Cesium.SampledPositionProperty();
+__pos.addSample(
+  __start,
+  Cesium.Cartesian3.fromDegrees(METEOR.startLon, METEOR.startLat, METEOR.startAlt)
+);
+__pos.addSample(
+  __stop,
+  Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt)
+);
+
+// --- Meteor entity (point or optional model) ---
+const __common = {
+  position: __pos,
+  orientation: new Cesium.VelocityOrientationProperty(__pos),
+  path: {
+    resolution: 1,
+    leadTime: 0,
+    trailTime: METEOR.trailSeconds,
+    material: new Cesium.PolylineGlowMaterialProperty({
+      color: Cesium.Color.ORANGE,
+      glowPower: 0.25,
+    }),
+    width: 8,
+  },
+};
+
+const __meteor = viewer.entities.add(
+  METEOR.useModel
+    ? {
+        ...__common,
+        model: {
+          uri: METEOR.modelUri,
+          minimumPixelSize: 32,
+          scale: 1.0,
+        },
+      }
+    : {
+        ...__common,
+        point: {
+          pixelSize: 12,
+          color: Cesium.Color.YELLOW.withAlpha(0.95),
+          outlineColor: Cesium.Color.ORANGE,
+          outlineWidth: 2,
+        },
+      }
+);
+
+// --- Tiny canvas-made sprite so particles work offline ---
+function __makeParticleImage(size = 32) {
+  const c = document.createElement("canvas");
+  c.width = size; c.height = size;
+  const ctx = c.getContext("2d");
+  const g = ctx.createRadialGradient(size/2, size/2, 1, size/2, size/2, size/2);
+  g.addColorStop(0.00, "rgba(255,255,255,1)");
+  g.addColorStop(0.25, "rgba(255,210,0,0.95)");
+  g.addColorStop(1.00, "rgba(255,120,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+  ctx.fill();
+  return c;
+}
+
+// --- Particle trail that follows the meteor ---
+const __trail = new Cesium.ParticleSystem({
+  image: __makeParticleImage(32),
+  startScale: 1.0,
+  endScale: 0.5,
+  emissionRate: 140,
+  particleLife: 0.6,
+  speed: 60.0,
+  lifetime: METEOR.flightSeconds + 5,
+  emitter: new Cesium.ConeEmitter(Cesium.Math.toRadians(10)),
+  sizeInMeters: true,
+});
+viewer.scene.primitives.add(__trail);
+
+// --- Utility: build modelMatrix from pos+orientation at a time ---
+const __matFromPose = (position, orientation) => {
+  const rot = Cesium.Matrix3.fromQuaternion(orientation, new Cesium.Matrix3());
+  return Cesium.Matrix4.fromRotationTranslation(rot, position, new Cesium.Matrix4());
+};
+
+let __impactDone = false;
+
+// --- Keep particle trail attached & aimed opposite the velocity; trigger impact burst once ---
+const __preRender = viewer.scene.preRender.addEventListener(function(scene, time) {
+  const now = time || viewer.clock.currentTime;
+
+  const p = __pos.getValue(now);
+  if (!p) return;
+
+  // Orientation at time (Quaternion)
+  const q = __meteor.orientation.getValue(now);
+  if (q) {
+    // Orient emitter to face "backwards" relative to flight
+    // Default modelMatrix aligns emitter forward; rotate 180° around local Y to point the cone backward
+    const m = __matFromPose(p, q);
+    // 180° around local Y axis
+    const flip = Cesium.Matrix3.fromRotationY(Math.PI, new Cesium.Matrix3());
+    const mRot = Cesium.Matrix3.fromQuaternion(q, new Cesium.Matrix3());
+    Cesium.Matrix3.multiply(mRot, flip, mRot);
+    Cesium.Matrix4.setRotation(m, mRot, m);
+    __trail.modelMatrix = m;
+  } else {
+    __trail.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(p);
+  }
+
+  // Impact detection: when time reaches stop OR altitude falls below ~1.5 km
+  const carto = Cesium.Ellipsoid.WGS84.cartesianToCartographic(p);
+  const low = carto && carto.height < 1500.0;
+
+  if (!__impactDone && (Cesium.JulianDate.greaterThanOrEquals(now, __stop) || low)) {
+    __impactDone = true;
+
+    // Impact burst at end location
+    const impactCartesian = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 10.0);
+    const __burst = new Cesium.ParticleSystem({
+      image: __makeParticleImage(48),
+      startScale: 2.0,
+      endScale: 6.0,
+      emissionRate: 0,         // manual burst
+      lifetime: 1.6,
+      particleLife: 0.8,
+      speed: 120.0,
+      sizeInMeters: true,
+      emitter: new Cesium.SphereEmitter(80.0),
+      modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(impactCartesian),
+    });
+    viewer.scene.primitives.add(__burst);
+
+    // Emit ~300 particles in one go, then clean up
+    let emitted = false;
+    const __burstTick = viewer.scene.preRender.addEventListener(function(_, t2) {
+      if (!emitted) {
+        emitted = true;
+        for (let i = 0; i < 300; i++) {
+          // Random direction
+          const vx = Math.random() - 0.5;
+          const vy = Math.random() - 0.5;
+          const vz = Math.random();
+          const v = Cesium.Cartesian3.normalize(
+            new Cesium.Cartesian3(vx, vy, vz),
+            new Cesium.Cartesian3()
+          );
+          Cesium.Cartesian3.multiplyByScalar(v, 120.0, v);
+          __burst.addParticle({ position: Cesium.Cartesian3.ZERO, velocity: v });
+        }
+      }
+      // Remove burst after its lifetime
+      if (Cesium.JulianDate.secondsDifference(t2, __stop) > 2.0) {
+        viewer.scene.primitives.remove(__burst);
+        viewer.scene.preRender.removeEventListener(__burstTick);
+      }
+    });
+
+    // Stop trail + hide meteor at impact
+    viewer.scene.primitives.remove(__trail);
+    if (__meteor.point) __meteor.point.color = Cesium.Color.TRANSPARENT;
+    if (__meteor.model) __meteor.model.silhouetteSize = 0;
+
+    // Snap clock to end
+    viewer.clock.currentTime = __stop.clone();
+    // Optional: little camera move
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 900000.0),
+      orientation: { pitch: Cesium.Math.toRadians(-35) },
+      duration: 2.0,
+    });
+  }
+});
+
+// (Optional) Fly near the track at start
+viewer.camera.flyTo({
+  destination: Cesium.Cartesian3.fromDegrees(METEOR.startLon, METEOR.startLat, 1500000.0),
+  orientation: { pitch: Cesium.Math.toRadians(-25) },
+  duration: 2.0,
+});
+
+// ==== End Meteor script ====

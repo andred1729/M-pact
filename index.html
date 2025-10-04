@@ -55,6 +55,30 @@
         color: #c8d6e5;
       }
 
+      .overlay button {
+        margin-top: 0.75rem;
+        padding: 0.5rem 1.1rem;
+        font-size: 0.85rem;
+        border: 1px solid rgba(125, 211, 252, 0.45);
+        border-radius: 999px;
+        background: linear-gradient(120deg, #1d8cf8, #935ade);
+        color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 8px 22px rgba(33, 150, 243, 0.35);
+      }
+
+      .overlay button:hover:enabled {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 28px rgba(33, 150, 243, 0.4);
+      }
+
+      .overlay button:disabled {
+        opacity: 0.6;
+        cursor: default;
+        box-shadow: none;
+      }
+
       .credits {
         position: absolute;
         bottom: 1rem;
@@ -73,10 +97,12 @@
     <div class="overlay">
       <h1>Globe Simulator</h1>
       <p>
-        Explore a rich Cesium entity showcase with analytic geometries,
-        volumes, and atmospheric lighting. Use mouse or trackpad gestures to
-        orbit, zoom, and inspect each feature.
+        Explore Cesium’s analytic geometries plus a scripted meteor entry with
+        glowing trails and an impact burst. Click Launch Meteor to run the
+        sequence, then use mouse or trackpad gestures to orbit, zoom, and
+        inspect each feature.
       </p>
+      <button id="launchMeteor" type="button">Launch Meteor</button>
     </div>
     <div id="cesiumContainer"></div>
     <div class="credits">Powered by CesiumJS + OpenStreetMap imagery</div>
@@ -589,6 +615,275 @@
         });
 
         viewer.zoomTo(viewer.entities);
+
+        viewer.clock.shouldAnimate = false;
+
+        // ==== Meteor: drop-in script integration ====
+        const METEOR = {
+          startLon: -99.0,
+          startLat: 52.0,
+          startAlt: 120000.0,
+          endLon: -90.0,
+          endLat: 33.0,
+          endAlt: 1000.0,
+          flightSeconds: 12,
+          trailSeconds: 20,
+          useModel: false,
+          modelUri: "/models/asteroid.glb",
+        };
+
+        function makeParticleImage(size = 32) {
+          const canvas = document.createElement("canvas");
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          const gradient = ctx.createRadialGradient(
+            size / 2,
+            size / 2,
+            1,
+            size / 2,
+            size / 2,
+            size / 2
+          );
+          gradient.addColorStop(0.0, "rgba(255,255,255,1)");
+          gradient.addColorStop(0.25, "rgba(255,210,0,0.95)");
+          gradient.addColorStop(1.0, "rgba(255,120,0,0)");
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+          return canvas;
+        }
+
+        const launchButton = document.getElementById("launchMeteor");
+        let meteorActive = false;
+
+        function startMeteorRun() {
+          if (!launchButton) {
+            console.error("Launch Meteor button is missing.");
+            return;
+          }
+          if (meteorActive) {
+            return;
+          }
+
+          meteorActive = true;
+          launchButton.disabled = true;
+          launchButton.textContent = "Meteor in flight";
+
+          const startTime = Cesium.JulianDate.now();
+          const stopTime = Cesium.JulianDate.addSeconds(
+            startTime,
+            METEOR.flightSeconds,
+            new Cesium.JulianDate()
+          );
+
+          viewer.clock.startTime = startTime.clone();
+          viewer.clock.stopTime = stopTime.clone();
+          viewer.clock.currentTime = startTime.clone();
+          viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
+          viewer.clock.multiplier = 1;
+          viewer.clock.shouldAnimate = false;
+
+          const positionProperty = new Cesium.SampledPositionProperty();
+          positionProperty.addSample(
+            startTime,
+            Cesium.Cartesian3.fromDegrees(
+              METEOR.startLon,
+              METEOR.startLat,
+              METEOR.startAlt
+            )
+          );
+          positionProperty.addSample(
+            stopTime,
+            Cesium.Cartesian3.fromDegrees(
+              METEOR.endLon,
+              METEOR.endLat,
+              METEOR.endAlt
+            )
+          );
+
+          const baseEntity = {
+            position: positionProperty,
+            orientation: new Cesium.VelocityOrientationProperty(positionProperty),
+            path: {
+              resolution: 1,
+              leadTime: 0,
+              trailTime: METEOR.trailSeconds,
+              material: new Cesium.PolylineGlowMaterialProperty({
+                color: Cesium.Color.ORANGE,
+                glowPower: 0.25,
+              }),
+              width: 8,
+            },
+          };
+
+          const meteorEntity = viewer.entities.add(
+            METEOR.useModel
+              ? {
+                  ...baseEntity,
+                  model: {
+                    uri: METEOR.modelUri,
+                    minimumPixelSize: 32,
+                    scale: 1.0,
+                  },
+                }
+              : {
+                  ...baseEntity,
+                  point: {
+                    pixelSize: 12,
+                    color: Cesium.Color.YELLOW.withAlpha(0.95),
+                    outlineColor: Cesium.Color.ORANGE,
+                    outlineWidth: 2,
+                  },
+                }
+          );
+
+          const trail = new Cesium.ParticleSystem({
+            image: makeParticleImage(32),
+            startScale: 1.0,
+            endScale: 0.5,
+            emissionRate: 140,
+            particleLife: 0.6,
+            speed: 60.0,
+            lifetime: METEOR.flightSeconds + 5,
+            emitter: new Cesium.ConeEmitter(Cesium.Math.toRadians(10)),
+            sizeInMeters: true,
+          });
+          viewer.scene.primitives.add(trail);
+
+          let trailRemoved = false;
+          const removeTrail = () => {
+            if (!trailRemoved) {
+              viewer.scene.primitives.remove(trail);
+              trailRemoved = true;
+            }
+          };
+
+          let burstTimeoutId = null;
+          let burstPrimitive = null;
+          let preRenderCallback;
+
+          const finalize = () => {
+            if (burstTimeoutId !== null) {
+              window.clearTimeout(burstTimeoutId);
+              burstTimeoutId = null;
+            }
+            viewer.scene.preRender.removeEventListener(preRenderCallback);
+            removeTrail();
+            if (burstPrimitive) {
+              viewer.scene.primitives.remove(burstPrimitive);
+              burstPrimitive = null;
+            }
+            viewer.entities.remove(meteorEntity);
+            viewer.clock.shouldAnimate = false;
+            meteorActive = false;
+            launchButton.disabled = false;
+            launchButton.textContent = "Replay Meteor";
+          };
+
+          const rotationScratch = new Cesium.Matrix3();
+          const flipMatrix = Cesium.Matrix3.fromRotationY(Math.PI, new Cesium.Matrix3());
+          const trailMatrix = new Cesium.Matrix4();
+
+          preRenderCallback = function (scene, time) {
+            const now = time || viewer.clock.currentTime;
+            const position = positionProperty.getValue(now);
+            if (!position) {
+              return;
+            }
+
+            const orientation = meteorEntity.orientation.getValue(now);
+            if (orientation) {
+              Cesium.Matrix3.fromQuaternion(orientation, rotationScratch);
+              Cesium.Matrix3.multiply(rotationScratch, flipMatrix, rotationScratch);
+              Cesium.Matrix4.fromRotationTranslation(rotationScratch, position, trailMatrix);
+              trail.modelMatrix = trailMatrix;
+            } else {
+              Cesium.Transforms.eastNorthUpToFixedFrame(
+                position,
+                undefined,
+                trailMatrix
+              );
+              trail.modelMatrix = trailMatrix;
+            }
+
+            const cartographic = Cesium.Ellipsoid.WGS84.cartesianToCartographic(position);
+            const lowAltitude = cartographic ? cartographic.height < 1500.0 : false;
+            const reachedEnd = Cesium.JulianDate.greaterThanOrEquals(now, stopTime);
+
+            if (reachedEnd || lowAltitude) {
+              viewer.scene.preRender.removeEventListener(preRenderCallback);
+
+              removeTrail();
+              meteorEntity.show = false;
+
+              viewer.clock.currentTime = stopTime.clone();
+
+              const impactCartesian = Cesium.Cartesian3.fromDegrees(
+                METEOR.endLon,
+                METEOR.endLat,
+                10.0
+              );
+              burstPrimitive = new Cesium.ParticleSystem({
+                image: makeParticleImage(48),
+                startScale: 2.0,
+                endScale: 6.0,
+                emissionRate: 0,
+                lifetime: 1.6,
+                particleLife: 0.8,
+                speed: 120.0,
+                sizeInMeters: true,
+                emitter: new Cesium.SphereEmitter(80.0),
+                modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(impactCartesian),
+                bursts: [
+                  new Cesium.ParticleBurst({
+                    time: 0.0,
+                    minimum: 300,
+                    maximum: 300,
+                  }),
+                ],
+              });
+              viewer.scene.primitives.add(burstPrimitive);
+
+              burstTimeoutId = window.setTimeout(() => {
+                finalize();
+              }, 2000);
+
+              if (viewer && viewer.camera) {
+                viewer.camera.flyTo({
+                  destination: Cesium.Cartesian3.fromDegrees(
+                    METEOR.endLon,
+                    METEOR.endLat,
+                    900000.0
+                  ),
+                  orientation: { pitch: Cesium.Math.toRadians(-35) },
+                  duration: 2.0,
+                });
+              }
+            }
+          };
+
+          viewer.scene.preRender.addEventListener(preRenderCallback);
+
+          viewer.clock.shouldAnimate = true;
+
+          if (viewer && viewer.camera) {
+            viewer.camera.flyTo({
+              destination: Cesium.Cartesian3.fromDegrees(
+                METEOR.startLon,
+                METEOR.startLat,
+                1500000.0
+              ),
+              orientation: { pitch: Cesium.Math.toRadians(-25) },
+              duration: 2.0,
+            });
+          }
+        }
+
+        if (launchButton) {
+          launchButton.addEventListener("click", startMeteorRun);
+        }
       })();
     </script>
   </body>
