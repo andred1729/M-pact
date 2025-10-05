@@ -113,7 +113,6 @@
     <script>
       window.CESIUM_BASE_URL = "./node_modules/cesium/Build/Cesium/";
       window.CESIUM_ION_TOKEN = "__CESIUM_ION_TOKEN__";
-
     </script>
     <script src="./node_modules/cesium/Build/Cesium/Cesium.js"></script>
     <!-- Turf & TopoJSON from CDNs (pinned versions) -->
@@ -132,7 +131,17 @@
             ? window.CESIUM_ION_TOKEN : null;
         if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
 
-        const viewerOptions = { infoBox: false };
+        const viewerOptions = {
+          infoBox: false,
+          animation: false,
+          timeline: false,
+          geocoder: false,
+          homeButton: false,
+          navigationHelpButton: false,
+          baseLayerPicker: false,
+          fullscreenButton: false,
+          selectionIndicator: false,
+        };
         if (!ionToken) {
           viewerOptions.imageryProvider = new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" });
           viewerOptions.terrainProvider = new Cesium.EllipsoidTerrainProvider();
@@ -232,7 +241,7 @@
           if (statsEl) {
             const energyPJ = storedSelection.energyJoules ? (storedSelection.energyJoules).toFixed(2) : '0.40';
             const size = storedSelection.sizeMeters ? storedSelection.sizeMeters.toFixed(0) : '20';
-            statsEl.textContent = `Energy ~${energyPJ} Megatons of TNT· Diameter ~${size} m`;
+            statsEl.textContent = `Energy ~${energyPJ} Megatons · Diameter ~${size} m`;
           }
         } else {
           const labelEl = document.getElementById('selectedAsteroidLabel');
