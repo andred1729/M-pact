@@ -30,11 +30,19 @@ if (toolbar) toolbar.innerHTML = "";
 (() => {
   const style = document.createElement("style");
   style.textContent = `
-    .cesium-viewer-infoBoxContainer { width: clamp(380px, 36vw, 560px) !important; max-height: 72vh !important; }
-    .cesium-infoBox-iframe { height: 420px !important; }
+    .cesium-viewer-infoBoxContainer { width: clamp(420px, 35vw, 560px) !important; max-height: 25vh !important; }
+    .cesium-infoBox-iframe { height: 215px !important; }
+.cesium-infoBox-title {
+    background-color: #9370db;   
+    color: #f8fafc;              
+    font-weight: bold;
+    font-size: 16px;
+    padding: 8px;
+    border-bottom: 1px solid #333;
+  }
     @media (max-width: 640px) {
       .cesium-viewer-infoBoxContainer { width: 90vw !important; max-height: 60vh !important; }
-      .cesium-infoBox-iframe { height: 320px !important; }
+      .cesium-infoBox-iframe { height: 200px !important; }
     }
   `;
   document.head.appendChild(style);
@@ -46,7 +54,9 @@ if (toolbar) toolbar.innerHTML = "";
     s.id = "injected-infobox-style";
     s.textContent = `
       :root { color-scheme: light dark; }
-      html, body { margin:0; padding:8px; font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+      html, body { margin:0; padding:8px; font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; 
+      background-color: rgba(6, 17, 32, 0.85);
+      }
       h3 { margin:0 0 .5em; font-size:16px; }
       code, pre { background: rgba(0,0,0,.06); padding:.1em .3em; border-radius:4px; }
       @media (prefers-color-scheme: dark) { code, pre { background: rgba(255,255,255,.08); } }
