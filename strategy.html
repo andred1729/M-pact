@@ -84,7 +84,7 @@
       
   <div class="video-background">
     <iframe
-    src="https://www.youtube.com/embed/MkRSmynqonM?autoplay=1&mute=1&loop=1&start=120&end=160&playlist=MkRSmynqonM&controls=0&modestbranding=1&rel=0&showinfo=0"
+    src="https://www.youtube.com/embed/N-OvnVdZP_8?autoplay=1&mute=1&loop=1&start=8&end=35&playlist=N-OvnVdZP_8&controls=0&modestbranding=1&rel=0&showinfo=0"
     frameborder="0"
     allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
     allowfullscreen
@@ -94,14 +94,24 @@
   </div>
 
   <div class="content">
-    <h1>50 - 100 years before collision</h1>
-    <p>With decades of warning time before collision, mitigation measures are mostly preventative. 
-        Since these methods generally involve using man-made spacecraft, 
-        they require an incredibly long time to plan, develop, and test. Although these strategies haven’t been 
-        researched or tested much (some more than others), they may prove effective in the future. </p>
+    <h1>Mitigation Strategies:</h1>
+    <p><b>Deflection through Kinetic Impactor: </b> </p> 
+       <p>The idea behind this method is simple: crash an object (i.e. a spacecraft) into the asteroid, 
+        deflecting it away from a collision course. This is the only method that has truly been tested before,
+    through NASA's Double Asteroid Redirection Test (DART), which successfully altered the orbit of the asteroid 
+    moon Dimorphos through collision. It altered its orbit by 33 minutes!  </p>
+    <p>
+        This impactor can be sent millions of kilometers away for interception, and can make autonomous adjustments in the final moments. 
+    </p>
+    <p><b>Deflection using Laser Ablation: </b> </p> 
+    <p>In this method, a massive spacecraft is launched from Earth, traveling close to the asteroid and using its own gravitational field to slowly pull the asteroid away from a collision path. </p>
+    <p><b>Asteroid Destruction using a Gravity Tractor: </b> </p> 
+    <p>This technique involves one or more spacecraft focusing lasers on the surface of the asteroid, vaporizing material and creating ejecta plumes which push the asteroid away from Earth. It’s like Atari!
+        This technique can scale nicely with larger asteroids, but it does run the risk of destroying other satellites or spacecraft with the debris!
+    </p>
 
         <div class="overlay" style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
-            <button id="strategy" type="button" >Explore Mitigation Strategies</button>
+            <button id="medium" type="button" >Next Stage</button>
           </div>
 
           <div class="overlay" style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
@@ -110,13 +120,13 @@
   </div>
 
 <script>
-    const strategyButton = document.getElementById("strategy");
+    const mediumButton = document.getElementById("medium");
     const homeButton = document.getElementById("home");
 
     homeButton?.addEventListener('click', () => { window.location.href = '/index.html';  
 });
 
-    strategyButton?.addEventListener('click', () => { window.location.href = '/strategy.html';  
+    mediumButton?.addEventListener('click', () => { window.location.href = '/medium.html';  
 });
 
 </script>

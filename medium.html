@@ -84,7 +84,7 @@
       
   <div class="video-background">
     <iframe
-    src="https://www.youtube.com/embed/MkRSmynqonM?autoplay=1&mute=1&loop=1&start=120&end=160&playlist=MkRSmynqonM&controls=0&modestbranding=1&rel=0&showinfo=0"
+    src="https://www.youtube.com/embed/N-OvnVdZP_8?autoplay=1&mute=1&loop=1&start=8&end=35&playlist=N-OvnVdZP_8&controls=0&modestbranding=1&rel=0&showinfo=0"
     frameborder="0"
     allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
     allowfullscreen
@@ -94,14 +94,25 @@
   </div>
 
   <div class="content">
-    <h1>50 - 100 years before collision</h1>
-    <p>With decades of warning time before collision, mitigation measures are mostly preventative. 
-        Since these methods generally involve using man-made spacecraft, 
-        they require an incredibly long time to plan, develop, and test. Although these strategies haven’t been 
-        researched or tested much (some more than others), they may prove effective in the future. </p>
+    <h1>2 months before collision:</h1>
+    <p>With only months left until collision, options for mitigation become more limited. There is only one real prevention strategy commonly discussed in planetary defense research...</p>
+    <p><b>Nuclear explosive: </b> </p> 
+       <p>This method is exactly what it sounds like—launch a nuke at the meteor. The energy deposited by the bomb heats the asteroid’s surface, 
+        vaporizing material and moving it in the opposite direction. 
+        Without the need to build a spacecraft from scratch, this method can be deployed within a relatively short timeframe.   </p>
+ 
+    <p>
+        This is most likely the most effective prevention technique, imparting 10-100 times more momentum to the asteroid than other methods. It's good
+         in scenarios with little warning time, and can work on large objects. </p>
+ 
+        <p> However, there are international political complications. Implementation of a nuclear weapon in general would raise geopolitical tensions,
+             and would likely set a bad precedent for future military actions in space. Also, many citizens fear and reject the idea of using nuclear weapons in any capacity.
+        
+
+    </p>
 
         <div class="overlay" style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
-            <button id="strategy" type="button" >Explore Mitigation Strategies</button>
+            <button id="short" type="button" >Final Stage</button>
           </div>
 
           <div class="overlay" style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
@@ -110,13 +121,13 @@
   </div>
 
 <script>
-    const strategyButton = document.getElementById("strategy");
+    const shortButton = document.getElementById("short");
     const homeButton = document.getElementById("home");
 
     homeButton?.addEventListener('click', () => { window.location.href = '/index.html';  
 });
 
-    strategyButton?.addEventListener('click', () => { window.location.href = '/strategy.html';  
+    shortButton?.addEventListener('click', () => { window.location.href = '/short.html';  
 });
 
 </script>
