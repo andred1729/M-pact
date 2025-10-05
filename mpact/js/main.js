@@ -167,7 +167,7 @@ function updateSelectionDisplay(spec) {
     const energyBombs = spec.energyBombs;
     const sizeObjects = spec.sizeObjects;
     const prob = spec.prob;
-    selectedStatsEl.textContent = `Energy ~${energyPJ} Megaton (one million tons of TNT) · Diameter ~${spec.sizeMeters.toFixed(0)} m`;
+    selectedStatsEl.textContent = `Energy ~${energyPJ} Megaton (one million tons of TNT) · Diameter ~${spec.sizeMeters.toFixed(0).toLocaleString()} m`;
   }
 }
 
@@ -225,11 +225,13 @@ function addAsteroid({
       const lon = Cesium.Math.toDegrees(c.longitude).toFixed(2);
       const altKm = (c.height / 1000).toFixed(0);
       return `<h3>${name}</h3>
-        <div>Energy: ${(energyJoules).toFixed(0)} Megatons (1 million tons of TNT)</div>
-        <div>Energy (scaled): ${energyBombs} Nuclear Bombs (Hiroshima)</div>
-        <div>Diameter: ${sizeMeters.toFixed(0)} m</div>
+        <div>Lat/Lon: ${lat}°, ${lon}°</div>
+        <div>Alt: ${altKm.toLocaleString()} km</div>
+        <div>Energy: ${(energyJoules).toFixed(0).toLocaleString()} Megatons (1 million tons of TNT)</div>
+        <div>Energy (scaled): ${energyBombs.toLocaleString()} Nuclear Bombs (Hiroshima)</div>
+        <div>Diameter: ${sizeMeters.toFixed(0).toLocaleString()} m</div>
         <div>Diameter (scaled): ${sizeObjects}</div>
-        <div>Probability of Earth Impact: 1 in ${(1/prob).toFixed(0)} </div>`;
+        <div>Probability of Earth Impact: 1 in ${(Math.round(1/prob)).toLocaleString()} </div>`;
     }, false),
   });
 
@@ -312,8 +314,10 @@ const specs = [
     energyJoules: 1.2e+5, 
     energyBombs: 8000000,
     sizeMeters: 1012,
-    sizeObjects: "Spanning almost the length from the tip of Florida to the top of Georgia (1200m)! ",
+    sizeObjects: "About 2.5 Sears Towers!",
     prob: 1.3e-9,
+    chicagoImpactDeaths: 33274192,
+    gulfImpactDeaths: 27143002,
     silhouette: { color: Cesium.Color.DARKORCHID, size: 4 },
   },
   {
@@ -330,7 +334,9 @@ const specs = [
     energyBombs: 287000,
     sizeMeters: 350,
     sizeObjects: "Taller than the Eiffel Tower (330m)",
-    prob: 6.5e-9, 
+    prob: 6.5e-9,
+    chicagoImpactDeaths: 13723103,
+    gulfImpactDeaths: 940161,
     silhouette: { color: Cesium.Color.DARKMAGENTA, size: 4 },
   },
   {
@@ -348,6 +354,8 @@ const specs = [
     sizeMeters: 58,
     sizeObjects: "The length of five yellow school buses, parked front-to-back",
     prob: 6.5e-5,
+    chicagoImpactDeaths: 15984212,
+    gulfImpactDeaths: 1130739,
     silhouette: { color: Cesium.Color.DARKVIOLET, size: 4 },
   },
   {
@@ -367,6 +375,8 @@ const specs = [
     sizeMeters: 120,
     sizeObjects: "Almost as tall as Great Pyramid of Giza (138m)",
     prob: 6.1e-8,
+    chicagoImpactDeaths: 14759431,
+    gulfImpactDeaths: 1054345,
     silhouette: { color: Cesium.Color.FUCHSIA, size: 4 },
   },
   {
@@ -386,6 +396,8 @@ const specs = [
     sizeMeters: 81,
     sizeObjects: "The height of a 17 story building",
     prob: 7.5e-6,
+    chicagoImpactDeaths: 0,
+    gulfImpactDeaths: 0,
     silhouette: { color: Cesium.Color.MEDIUMORCHID, size: 4 },
   },
   {
@@ -405,6 +417,8 @@ const specs = [
     sizeMeters: 38,
     sizeObjects: "1.5 times a typical flagpole's height!",
     prob: 6.3e-5,
+    chicagoImpactDeaths: 0,
+    gulfImpactDeaths: 0,
     silhouette: { color: Cesium.Color.MAGENTA, size: 4 },
   },
   {
@@ -424,6 +438,8 @@ const specs = [
     sizeMeters: 5,
     sizeObjects: "2 and a half horses standing on top of each other",
     prob: 2.6e-5,
+    chicagoImpactDeaths: 0,
+    gulfImpactDeaths: 0,
     silhouette: { color: Cesium.Color.MEDIUMPURPLE, size: 4 },
   },
 ];
