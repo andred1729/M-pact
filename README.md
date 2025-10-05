@@ -16,7 +16,6 @@ entire flow from `node server.js` without juggling separate servers.
 
 ```bash
 npm install
-export CESIUM_ION_TOKEN="paste-your-ion-token"
 node server.js
 ```
 
