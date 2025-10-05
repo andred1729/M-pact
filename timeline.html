@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video Background Example</title>
+
+  
+  <style>
+    
+    
+    html, body {
+        margin: 0;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        justify-content: center; /* centers horizontally */
+        align-items: center;     /* centers vertically */
+        background: transparent; /* or your background color */
+    }
+
+    .content {
+    background-color: rgba(0, 0, 0, 0.6); /* black with 60% opacity */
+    color: white; /* text color */
+    padding: 30px 40px;
+    border-radius: 12px;
+    max-width: 600px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    text-align: center;
+    }
+    
+
+    .video-background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: -1;
+    }
+
+    .video-background iframe {
+      width: 177.77vh; /* 100vh * (16/9 aspect ratio) */
+      height: 100vh;
+      position: absolute;
+      top: 0%;
+      left: 0%;
+      right: 0%;
+      transform: translateD(-50%);
+      pointer-events: none;
+      background = black;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      color: white;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+    <div class="video-background">
+    <div id="player"></div>
+    </div>
+      
+  <div class="video-background">
+    <iframe
+    src="https://www.youtube.com/embed/MkRSmynqonM?autoplay=1&mute=1&loop=1&start=120&end=160&playlist=MkRSmynqonM&controls=0&modestbranding=1&rel=0&showinfo=0"
+    frameborder="0"
+    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+    allowfullscreen
+  ></iframe>
+  
+
+  </div>
+
+  <div class="content">
+    <h1>50 - 100 years before collision</h1>
+    <p>With decades of warning time before collision, mitigation measures are mostly preventative. 
+        Since these methods generally involve using man-made spacecraft, 
+        they require an incredibly long time to plan, develop, and test. Although these strategies haven’t been 
+        researched or tested much (some more than others), they may prove effective in the future. </p>
+  </div>
+
+
+</body>
+</html>
