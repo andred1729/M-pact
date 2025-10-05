@@ -321,8 +321,8 @@
           impactCircleTimers = [];
           impactCircleEntities.forEach((e) => viewer.entities.remove(e));
           impactCircleEntities = [];
-          if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
-          if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; }
+          // if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
+          // if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; }
           trajectoryPositions = [];
 
           launchButton.disabled = true;
@@ -436,7 +436,6 @@
             if (burstTimeoutId !== null) { window.clearTimeout(burstTimeoutId); burstTimeoutId = null; }
             viewer.scene.preRender.removeEventListener(preRenderCallback);
             if (burstPrimitive) { viewer.scene.primitives.remove(burstPrimitive); burstPrimitive = null; }
-            viewer.entities.remove(meteorEntity);
             viewer.clock.shouldAnimate = false;
             meteorActive = false;
             if (pickBtn) pickBtn.disabled = false;
@@ -569,7 +568,7 @@
           createEpicenterSpheres();
 
           // UI feedback: enable Simulate button and hide center blurb
-          if (centerBlurb) { centerBlurb.textContent = 'Set Meteor Landing Location'; setTimeout(() => (centerBlurb.style.display = 'none'), 600); }
+          if (centerBlurb) { centerBlurb.textContent != null; setTimeout(() => (centerBlurb.style.display = 'none'), 600); }
           if (launchButton) { launchButton.disabled = false; launchButton.classList.add('btn-pulse'); }
 
           pickingImpact = false;
@@ -579,7 +578,6 @@
         // === End impact picking ===
 
         if (launchButton) launchButton.addEventListener("click", startMeteorRun);
-
 
       })();
     </script>

@@ -1,79 +1,134 @@
-// main.js
+// === main.js (models visible + InfoBox body + overlay label + working nav) ===
 
-
-
+// --- Cesium setup (minimal UI) ---
 const ionToken = (window.CESIUM_ION_TOKEN || "").trim();
-if (ionToken) {
-  Cesium.Ion.defaultAccessToken = ionToken;
-} else {
-  console.warn(
-    "CESIUM_ION_TOKEN not provided. Terrain and other Ion resources may be unavailable."
-  );
-}
+if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
+if (window.CESIUM_BASE_URL) Cesium.buildModuleUrl.setBaseUrl(window.CESIUM_BASE_URL);
 
-if (window.CESIUM_BASE_URL) {
-  Cesium.buildModuleUrl.setBaseUrl(window.CESIUM_BASE_URL);
-}
-
-const viewer = new Cesium.Viewer('cesiumContainer', {
+const viewer = new Cesium.Viewer("cesiumContainer", {
   infoBox: true,
   terrain: Cesium.Terrain.fromWorldTerrain({ requestWaterMask: true }),
+  animation: false,
+  baseLayerPicker: false,
+  fullscreenButton: false,
+  geocoder: false,
+  homeButton: false,
+  navigationHelpButton: false,
+  sceneModePicker: false,
+  selectionIndicator: true,
+  timeline: false,
+  vrButton: false,
 });
+<<<<<<< HEAD
 
 const STORAGE_KEY = 'mpact:selectedAsteroid';
 const selectedNameEl = document.getElementById('selectedAsteroidName');
+=======
+viewer.clock.shouldAnimate = true;
 
-function updateSelectionDisplay(spec) {
-  if (!selectedNameEl) return;
-  selectedNameEl.textContent = spec
-    ? `Selected: ${spec.name}`
-    : 'No asteroid selected yet.';
-}
+// Remove Cesium toolbar buttons
+const toolbar = viewer.container.querySelector(".cesium-viewer-toolbar");
+if (toolbar) toolbar.innerHTML = "";
 
-updateSelectionDisplay(null);
+// --- InfoBox theming/size ---
+(() => {
+  const style = document.createElement("style");
+  style.textContent = `
+    .cesium-viewer-infoBoxContainer { width: clamp(380px, 36vw, 560px) !important; max-height: 72vh !important; }
+    .cesium-infoBox-iframe { height: 420px !important; }
+    @media (max-width: 640px) {
+      .cesium-viewer-infoBoxContainer { width: 90vw !important; max-height: 60vh !important; }
+      .cesium-infoBox-iframe { height: 320px !important; }
+    }
+  `;
+  document.head.appendChild(style);
 
-// --- Clock setup: loop time and run fast enough to see motion ---
+  const inject = () => {
+    const doc = viewer.infoBox.frame?.contentDocument;
+    if (!doc || doc.getElementById("injected-infobox-style")) return;
+    const s = doc.createElement("style");
+    s.id = "injected-infobox-style";
+    s.textContent = `
+      :root { color-scheme: light dark; }
+      html, body { margin:0; padding:8px; font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+      h3 { margin:0 0 .5em; font-size:16px; }
+      code, pre { background: rgba(0,0,0,.06); padding:.1em .3em; border-radius:4px; }
+      @media (prefers-color-scheme: dark) { code, pre { background: rgba(255,255,255,.08); } }
+    `;
+    doc.head.appendChild(s);
+  };
+  viewer.infoBox.frame?.addEventListener("load", inject);
+  inject();
+})();
+
+// === Overlay hooks (support both id spellings) ===
+const STORAGE_KEY = "mpact:selectedAsteroid";
+const selectedNameEl =
+  document.getElementById("selectedAsteroidName") ||
+  document.getElementById("selectedAsteroidLabel"); // <- fallback
+const selectedStatsEl =
+  document.getElementById("selectedAsteroidStats") ||
+  document.getElementById("selectedAsteroidMeta"); // optional fallback
+
+// Gradient “Choose a Meteor” button in overlay
+const chooseBtn = document.createElement("button");
+chooseBtn.id = "chooseMeteorBtn";
+chooseBtn.textContent = "Choose a Meteor";
+chooseBtn.type = "button";
+chooseBtn.disabled = true;
+Object.assign(chooseBtn.style, {
+  marginTop: ".5rem",
+  padding: ".5rem 1.1rem",
+  borderRadius: "999px",
+  border: "1px solid rgba(125,211,252,.45)",
+  background: "linear-gradient(120deg,#1d8cf8,#935ade)",
+  color: "#fff",
+  cursor: "pointer",
+  fontSize: ".85rem",
+  boxShadow: "0 8px 22px rgba(33,150,243,.35)",
+  transition: "transform .2s, box-shadow .2s",
+  opacity: "0.6",
+});
+chooseBtn.addEventListener("mouseover", () => {
+  if (!chooseBtn.disabled) {
+    chooseBtn.style.transform = "translateY(-1px)";
+    chooseBtn.style.boxShadow = "0 12px 28px rgba(33,150,243,.4)";
+  }
+});
+chooseBtn.addEventListener("mouseout", () => {
+  chooseBtn.style.transform = "none";
+  chooseBtn.style.boxShadow = "0 8px 22px rgba(33,150,243,.35)";
+});
+const overlay = document.querySelector(".overlay");
+if (overlay) overlay.appendChild(chooseBtn);
+>>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
+
+// === Clock window ===
 const start = Cesium.JulianDate.now();
-const stop  = Cesium.JulianDate.addMinutes(start, 90, new Cesium.JulianDate()); // ~one orbit at 500 km
-
-viewer.clock.startTime = start.clone();
-viewer.clock.stopTime  = stop.clone();
+const stop  = Cesium.JulianDate.addMinutes(start, 90, new Cesium.JulianDate());
+viewer.clock.startTime   = start.clone();
+viewer.clock.stopTime    = stop.clone();
 viewer.clock.currentTime = start.clone();
-viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP; // loop when reaching stop
-viewer.clock.multiplier = 60; // 1 sec real-time = 60 sec sim-time (speed up)
+viewer.clock.clockRange  = Cesium.ClockRange.LOOP_STOP;
+viewer.clock.multiplier  = 60;
 
-// Earth + orbit helpers
-const GM = 3.986004418e14;         // m^3/s^2
-const R_EARTH = 6371000.0;         // m
-// ---------- Constants ----------
-const WGS84_A = 6378137.0;                // m
-const MU = 3.986004418e14;                // m^3/s^2  (Earth GM)
-const R_E = 6371000.0;                    // m (spherical radius for altitude)
-const RHO0 = 1.225;                       // kg/m^3 (sea-level density)
-const H_SCALE = 8500.0;                   // m (scale height)
-
-function orbitalAngularRate(r) {    // circular orbit
-  return 10*Math.sqrt(GM / (r*r*r));
-}
-
-// Rotate PQW (orbital plane) → ECI with RAAN (Ω) then inclination (i)
+// === Orbit helpers ===
+const GM = 3.986004418e14;
+const R_EARTH = 6371000.0;
+function orbitalAngularRate(r) { return 10 * Math.sqrt(GM / (r*r*r)); }
 function rotateToECI(p, RAAN, inc) {
   const cO = Math.cos(RAAN), sO = Math.sin(RAAN);
-  const x1 =  cO*p.x - sO*p.y;
-  const y1 =  sO*p.x + cO*p.y;
-  const z1 =  p.z;
+  const x1 = cO*p.x - sO*p.y;
+  const y1 = sO*p.x + cO*p.y;
   const ci = Math.cos(inc), si = Math.sin(inc);
-  return new Cesium.Cartesian3(x1, ci*y1 - si*z1, si*y1 + ci*z1);
+  return new Cesium.Cartesian3(x1, ci*y1 - si*p.z, si*y1 + ci*p.z);
 }
-
-// Build a SampledPositionProperty for a circular orbit
 function makeOrbitPosition({ start, stop, altitude, incDeg, RAANDeg, phaseDeg, sampleStepSec=30 }) {
-  const inc  = Cesium.Math.toRadians(incDeg);
+  const inc = Cesium.Math.toRadians(incDeg);
   const RAAN = Cesium.Math.toRadians(RAANDeg);
   const phase0 = Cesium.Math.toRadians(phaseDeg);
   const r = R_EARTH + altitude;
   const omega = orbitalAngularRate(r);
-
   const position = new Cesium.SampledPositionProperty();
   for (let t = 0; ; t += sampleStepSec) {
     const when = Cesium.JulianDate.addSeconds(start, t, new Cesium.JulianDate());
@@ -86,43 +141,55 @@ function makeOrbitPosition({ start, stop, altitude, incDeg, RAANDeg, phaseDeg, s
   position.forwardExtrapolationType  = Cesium.ExtrapolationType.HOLD;
   return position;
 }
+
+// === Overlay display ===
+function updateSelectionDisplay(spec) {
+  // Always enable/disable the button even if the overlay text nodes are missing
+  const hasSelection = !!spec;
+  chooseBtn.disabled = !hasSelection;
+  chooseBtn.style.opacity = hasSelection ? "1" : "0.6";
+
+  if (!selectedNameEl && !selectedStatsEl) return; // nothing to render text into
+
+  if (!spec) {
+    if (selectedNameEl)  selectedNameEl.textContent  = "No asteroid selected";
+    if (selectedStatsEl) selectedStatsEl.textContent = "Energy — · Diameter —";
+    return;
+  }
+  if (selectedNameEl)  selectedNameEl.textContent  = spec.name;
+  if (selectedStatsEl) {
+    const energyPJ = (spec.energyJoules / 1e15).toFixed(2);
+    selectedStatsEl.textContent = `Energy ~${energyPJ} PJ · Diameter ~${spec.sizeMeters.toFixed(0)} m`;
+  }
+}
+
+// === Model rendering (primitive or entity) + picking support ===
+const primitiveToEntity = new WeakMap();
+
 function addAsteroid({
   id,
   name = "Asteroid",
   glb = "mpact/assets/asteroid.glb",
-  altitude = 500_000,          // m
-  incDeg = 45,                 // inclination
-  RAANDeg = 0,                 // ascending node
-  phaseDeg = 0,                // starting angle
-  modelScale = 500,            // GLB visual scale
+  altitude = 25_000_000,
+  incDeg = 45,
+  RAANDeg = 0,
+  phaseDeg = 0,
+  modelScale = 500_000,
   labelColor = Cesium.Color.WHITE,
   pathColor  = Cesium.Color.CYAN,
-  trailTime  = 600,            // seconds of tail
-  usePrimitive = true,        // true if you want silhouette support
-  silhouette = { color: Cesium.Color.LIME, size: 3 }, // used only if usePrimitive
-  meteorProfileId = id,
+  trailTime  = 600,
+  usePrimitive = true,
+  silhouette = { color: Cesium.Color.LIME, size: 3 },
   energyJoules = 4.0e14,
   sizeMeters = 20,
-  targetCity = 'chicago'
+  targetCity = "chicago",
 }) {
-  // Clock window (reuse your viewer clock if already set)
-  const start = viewer.clock.startTime ?? Cesium.JulianDate.now();
-  const stop  = viewer.clock.stopTime  ?? Cesium.JulianDate.addMinutes(start, 90, new Cesium.JulianDate());
-  viewer.clock.startTime = start.clone();
-  viewer.clock.stopTime  = stop.clone();
-  viewer.clock.currentTime = start.clone();
-  viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
-  viewer.clock.multiplier = viewer.clock.multiplier || 60;
-
   const position = makeOrbitPosition({ start, stop, altitude, incDeg, RAANDeg, phaseDeg });
   const orientation = new Cesium.VelocityOrientationProperty(position);
+  const availability = new Cesium.TimeIntervalCollection([new Cesium.TimeInterval({ start, stop })]);
 
-  const availability = new Cesium.TimeIntervalCollection([ new Cesium.TimeInterval({ start, stop }) ]);
-
-  // Entity to hold label/path/description (even if we render model as primitive)
   const e = viewer.entities.add({
-    id, availability, position, orientation,
-    name,
+    id, availability, position, orientation, name,
     label: {
       text: name,
       font: "16px sans-serif",
@@ -131,14 +198,15 @@ function addAsteroid({
       backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
       pixelOffset: new Cesium.Cartesian2(0, -20),
       scaleByDistance: new Cesium.NearFarScalar(1e3, 1.2, 1e7, 0.6),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
     path: new Cesium.PathGraphics({
       width: 3,
       material: pathColor.withAlpha(0.9),
       leadTime: 0,
-      trailTime
+      trailTime,
     }),
+<<<<<<< HEAD
 
     description: new Cesium.CallbackProperty((time) => {
       const p = position.getValue(time);
@@ -150,54 +218,90 @@ function addAsteroid({
               Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
               Diameter: ${sizeMeters.toFixed(0)} m`;
     }, false)
+=======
+    description: new Cesium.CallbackProperty((time) => {
+      const p = position.getValue(time);
+      if (!p) return `<h3>${name}</h3>`;
+      const c = Cesium.Cartographic.fromCartesian(p);
+      const lat = Cesium.Math.toDegrees(c.latitude).toFixed(2);
+      const lon = Cesium.Math.toDegrees(c.longitude).toFixed(2);
+      const altKm = (c.height / 1000).toFixed(0);
+      return `<h3>${name}</h3>
+        <div>Lat/Lon: ${lat}°, ${lon}°</div>
+        <div>Alt: ${altKm} km</div>
+        <div>Energy: ${(energyJoules/1e15).toFixed(2)} PJ</div>
+        <div>Diameter: ${sizeMeters.toFixed(0)} m</div>`;
+    }, false),
+>>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
   });
 
-  e.mpactData = {
-    id,
-    name,
-    meteorProfileId,
-    energyJoules,
-    sizeMeters,
-    targetCity,
-  };
+  e.mpactData = { id, name, energyJoules, sizeMeters, targetCity };
 
-  // Visual model: either Entity model or Primitive (for silhouette)
   if (!usePrimitive) {
+    // Entity-based model (auto-pickable)
     e.model = new Cesium.ModelGraphics({
       uri: glb,
       scale: modelScale,
       minimumPixelSize: 64,
       maximumScale: 200_000,
-      color: Cesium.Color.ORANGE,                      // make it bright
-      colorBlendMode: Cesium.ColorBlendMode.REPLACE
+      color: Cesium.Color.WHITE,
+      colorBlendMode: Cesium.ColorBlendMode.MIX,
     });
-    return { entity: e };
   } else {
+    // Primitive model with silhouette
     (async () => {
-      const m = await Cesium.Model.fromGltfAsync({ url: glb, scale: modelScale });
-      viewer.scene.primitives.add(m);
-
-      // Optional silhouette
-      m.silhouetteColor = silhouette.color;
-      m.silhouetteSize  = silhouette.size;
-
-      // Keep primitive glued to the entity’s motion/orientation
-      viewer.scene.preRender.addEventListener((scene, time) => {
-        const pos = position.getValue(time);
-        if (!pos) return;
-        const q = orientation.getValue(time);
-        if (q) {
-          const R = Cesium.Matrix3.fromQuaternion(q);
-          m.modelMatrix = Cesium.Matrix4.fromRotationTranslation(R, pos);
-        } else {
-          m.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
-        }
-      });
+      try {
+        const m = await Cesium.Model.fromGltfAsync({ url: glb, scale: modelScale });
+        viewer.scene.primitives.add(m);
+        primitiveToEntity.set(m, e);
+        m.silhouetteColor = silhouette.color;
+        m.silhouetteSize  = silhouette.size;
+        viewer.scene.preRender.addEventListener((_scene, time) => {
+          const pos = position.getValue(time);
+          if (!pos) return;
+          const q = orientation.getValue(time);
+          if (q) {
+            const R = Cesium.Matrix3.fromQuaternion(q);
+            m.modelMatrix = Cesium.Matrix4.fromRotationTranslation(R, pos);
+          } else {
+            m.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
+          }
+        });
+      } catch (err) {
+        console.warn(`Model load failed for ${name}:`, err);
+        e.point = new Cesium.PointGraphics({
+          pixelSize: 12,
+          color: Cesium.Color.ORANGE,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 2,
+        });
+      }
     })();
-    return { entity: e /*, primitive will attach asynchronously */ };
   }
+
+  return e;
 }
+
+// Global picking: entity or primitive -> select entity (ensures overlay + button update)
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+handler.setInputAction((movement) => {
+  const picked = viewer.scene.pick(movement.position);
+  if (!picked) return;
+
+  // If an entity was picked (labels/paths/etc.)
+  if (picked.id && picked.id instanceof Cesium.Entity) {
+    viewer.selectedEntity = picked.id;
+    return;
+  }
+  // If a primitive model was picked, map to its entity
+  if (picked.primitive && primitiveToEntity.has(picked.primitive)) {
+    viewer.selectedEntity = primitiveToEntity.get(picked.primitive);
+  }
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// === Asteroids ===
 const specs = [
+<<<<<<< HEAD
   {
     id: "2010 ER12",
     name: "2010 ER12",
@@ -297,90 +401,37 @@ const specs = [
     energyJoules: 8.0e14,
     sizeMeters: 5,
   },
+=======
+  { id: "a1", name: "Ast-Polar", altitude: 25_000_000, incDeg: 90,   RAANDeg: 0,   phaseDeg: 0,   modelScale: 500_000, pathColor: Cesium.Color.CYAN,   energyJoules: 1.2e15, sizeMeters: 45, targetCity: "chicago", usePrimitive: true },
+  { id: "a2", name: "Ast-30°",  altitude: 25_000_000, incDeg: 30,   RAANDeg: 60,  phaseDeg: 45,  modelScale: 700_000, pathColor: Cesium.Color.YELLOW, energyJoules: 6.0e14, sizeMeters: 30, targetCity: "chicago", usePrimitive: true },
+  { id: "a3", name: "Ast-63°",  altitude: 25_000_000, incDeg: 63.4, RAANDeg: 120, phaseDeg: 180, modelScale: 900_000, pathColor: Cesium.Color.ORANGE, energyJoules: 2.5e15, sizeMeters: 80, targetCity: "chicago", usePrimitive: true },
+  { id: "a4", name: "Ast-Silhouette", altitude: 25_000_000, incDeg: 51.6, RAANDeg: -90, phaseDeg: 270, modelScale: 600_000, pathColor: Cesium.Color.LIME, energyJoules: 8.0e14, sizeMeters: 35, targetCity: "chicago", usePrimitive: true, silhouette: { color: Cesium.Color.LIME, size: 4 } },
+>>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
 ];
+const asteroids = specs.map(addAsteroid);
 
-const asteroids = specs.map(s => addAsteroid(s));
-
-
-
-/*
-// --- Orbit parameters (edit these) ---
-const mu = 3.986004418e14;       // Earth GM [m^3/s^2]
-const R_earth = 6371000.0;       // mean radius [m]
-const altitude = 25000000.0;       // 500 km
-const r = R_earth + altitude;    // orbital radius [m]
-const inc = Cesium.Math.toRadians(45); // inclination i
-const RAAN = Cesium.Math.toRadians(-90); // ascending node Ω (rotates ground track)
-const phase0 = 0.0;              // starting phase (argument of latitude)
-
-// Derived angular rate for circular orbit
-const omega = 10*Math.sqrt(mu / (r*r*r)); // [rad/s]
-
-// --- Helper: rotate a vector by Z(Ω) then X(i) to set inclination/RAAN ---
-function rotateToECI(posPQW) {
-  // R3(Ω)
-  const cosO = Math.cos(RAAN), sinO = Math.sin(RAAN);
-  let x1 =  cosO*posPQW.x - sinO*posPQW.y;
-  let y1 =  sinO*posPQW.x + cosO*posPQW.y;
-  let z1 =  posPQW.z;
-
-  // R1(i)
-  const cosi = Math.cos(inc), sini = Math.sin(inc);
-  const x2 = x1;
-  const y2 = cosi*y1 - sini*z1;
-  const z2 = sini*y1 + cosi*z1;
-
-  return new Cesium.Cartesian3(x2, y2, z2);
-}
-
-// --- build a true PositionProperty with samples ---
-const position = new Cesium.SampledPositionProperty();
-position.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-position.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-
-const stepSeconds = 30; // sample spacing; smaller = smoother path/orientation
-for (let t = 0; ; t += stepSeconds) {
-  const time = Cesium.JulianDate.addSeconds(start, t, new Cesium.JulianDate());
-  if (Cesium.JulianDate.greaterThan(time, stop)) break;
-  const theta = phase0 + omega * t;
-  const pOrb = new Cesium.Cartesian3(r*Math.cos(theta), r*Math.sin(theta), 0.0);
-  position.addSample(time, rotateToECI(pOrb)); // ECEF-ish position
-}
-
-// --- give the entity availability matching the samples (helps the path) ---
-const availability = new Cesium.TimeIntervalCollection([
-  new Cesium.TimeInterval({ start, stop })
-]);
-*/
-// find the toolbar DOM node
-const toolbar = viewer.container.querySelector('.cesium-viewer-toolbar');
-
-const btn = document.createElement('button');
-btn.className = 'cesium-button cesium-toolbar-button';
-btn.title = 'Start Impact Simulation';
-btn.innerText = 'Start';
-btn.disabled = true;
-toolbar.appendChild(btn);
-
+// === Selection wiring & overlay updates ===
 let currentSelection = null;
 function setSelection(entity) {
   const data = entity?.mpactData || null;
   currentSelection = data;
-  btn.disabled = !data;
   updateSelectionDisplay(data);
-  // viewer.trackedEntity = data ? entity : undefined;
 }
-
 viewer.selectedEntityChanged.addEventListener(setSelection);
-setSelection(viewer.selectedEntity || null);
+setSelection(viewer.selectedEntity || null); // initialize overlay
 
+<<<<<<< HEAD
 btn.addEventListener('click', () => {
+=======
+// === Button: Save + go to next page (use RELATIVE path) ===
+chooseBtn.addEventListener("click", () => {
+>>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
   if (!currentSelection) {
-    window.alert('Select an asteroid first.');
+    alert("Select an asteroid first.");
     return;
   }
   const payload = {
-    meteorProfileId: currentSelection.meteorProfileId,
+    meteorProfileId: currentSelection.id,  // meteor.html expects "meteorProfileId"
     name: currentSelection.name,
     energyJoules: currentSelection.energyJoules,
     sizeMeters: currentSelection.sizeMeters,
@@ -390,99 +441,16 @@ btn.addEventListener('click', () => {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch (err) {
-    console.warn('Unable to persist asteroid selection:', err);
+    console.warn("Unable to persist asteroid selection:", err);
   }
-  window.location.href = '/meteor.html';
+  // Use relative navigation so it works from any base path
+  window.location.href = "meteor.html";
 });
 
-// const asteroid = viewer.entities.add({
-//   id: 'asteroid',
-//   availability,
-//   position,
-//   orientation: new Cesium.VelocityOrientationProperty(position),
-//   label: {
-//     text: "Asteroid",
-//     font: "16px sans-serif",
-//     showBackground: true,
-//     backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
-//     fillColor: Cesium.Color.WHITE,
-//     outlineColor: Cesium.Color.BLACK,
-//     outlineWidth: 2,
-//     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-
-//     // move label slightly above the model in screen space
-//     pixelOffset: new Cesium.Cartesian2(0, -20),
-
-//     // keep readable at various distances
-//     scaleByDistance: new Cesium.NearFarScalar(1.0e3, 1.2, 1.0e7, 0.6),
-
-//     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-//     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-//     disableDepthTestDistance: Number.POSITIVE_INFINITY, // keep label visi
-//   },
-//   description: `
-//     <h3>Asteroid</h3>
-//     <p>Altitude: 500 km<br/>Scale: 500</p>
-//     `,
-//   path: new Cesium.PathGraphics({
-//     width: 3,
-//     material: Cesium.Color.CYAN.withAlpha(0.9),
-//     leadTime: 0,         // only show the trail behind
-//     trailTime: 60       // seconds of trail to keep
-//   })
-// });
-
-// Cesium.Model.fromGltfAsync({ url: "/assets/asteroid.glb", scale: 500000 })
-//   .then(model => {
-//     viewer.scene.primitives.add(model);
-
-//     model.silhouetteColor = Cesium.Color.LIME;
-//     model.silhouetteSize  = 2.0;
-//     model.shadows = Cesium.ShadowMode.DISABLED;
-
-//     model.color = Cesium.Color.WHITE.withAlpha(1.0);
-//     model.colorBlendMode = Cesium.ColorBlendMode.MIX;
-
-//     viewer.scene.preRender.addEventListener((scene, time) => {
-//       const pos = asteroid.position.getValue(time);
-//       if (!pos) return;
-//       const q = asteroid.orientation?.getValue(time);
-//       if (q) {
-//         const R = Cesium.Matrix3.fromQuaternion(q);
-//         model.modelMatrix = Cesium.Matrix4.fromRotationTranslation(R, pos);
-//       } else {
-//         model.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
-//       }
-//     });
-
-
-//     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-//     handler.setInputAction((movement) => {
-//       const picked = viewer.scene.pick(movement.position);
-//       if (!Cesium.defined(picked)) return;
-
-//       // For primitives, picked.primitive is the Model. (picked.id may be undefined)
-//       if (picked.primitive !== model) return;
-
-//       // --- Do whatever you want on click ---
-//       // Toggle silhouette thickness
-//       viewer.selectedEntity = asteroid; // shows InfoBox
-      
-//     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-//   })
-//   .catch(err => console.error("Model load failed:", err));
-
-//viewer.camera.flyHome();
-
+// === Camera zoom-out on load ===
 const camera = viewer.camera;
 const current = Cesium.Cartographic.fromCartesian(camera.positionWC);
-
- viewer.camera.flyTo({
-  destination: Cesium.Cartesian3.fromRadians(
-    current.longitude,
-    current.latitude,
-    current.height * 8.0   // double the altitude → zoom out
-  ),
-  duration: 1.5
-
+viewer.camera.flyTo({
+  destination: Cesium.Cartesian3.fromRadians(current.longitude, current.latitude, current.height * 8.0),
+  duration: 1.5,
 });
