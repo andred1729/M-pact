@@ -113,7 +113,8 @@
     const craterModel = await Cesium.Model.fromGltfAsync({
       url: 'models/crater_fr 1.glb',  // your crater GLB file
       modelMatrix: craterMatrix,
-      scale: 1000   // match your crater size (e.g. 1 = 1 km if model was built that way)
+      scale: 1000,   // match your crater size (e.g. 1 = 1 km if model was built that way)
+      description: "BIG CRATER INFO"
     });
 
     viewer.scene.primitives.add(craterModel);

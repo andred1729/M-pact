@@ -178,7 +178,7 @@
           }
         };
         const ASTEROIDS = {
-          chelyabinskLike: { joules: 4.0e14, sizeMeters: 20 },
+          chelyabinskLike: { joules: 0.4, sizeMeters: 20 },
           a1: { joules: 1.2e15, sizeMeters: 45 },
           a2: { joules: 6.0e14, sizeMeters: 30 },
           a3: { joules: 2.5e15, sizeMeters: 80 },
@@ -229,6 +229,9 @@
               joules: storedSelection.energyJoules || ASTEROIDS.chelyabinskLike.joules,
               sizeMeters: storedSelection.sizeMeters || ASTEROIDS.chelyabinskLike.sizeMeters,
             };
+            console.log("create new asteroid");
+            console.log(storedSelection.meteorProfileId);
+            console.log(ASTEROIDS[storedSelection.meteorProfileId].joules);
           }
           if (storedSelection.targetCity && CITIES[storedSelection.targetCity]) {
             METEOR.targetCity = storedSelection.targetCity;
@@ -588,7 +591,8 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           timelineButton.disabled = true;
 
           const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
-          const K = asteroidProfile.joules ** (1/3);
+          const K = 1000*asteroidProfile.joules ** (1/3);
+          console.log("K:",K);
           const impactRadius = [1.8 * K, 2.5 * K, 3.3 * K, 6.2 * K, 16.1 * K];
 
           meteorActive = true;
@@ -800,6 +804,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
                   const timerId = window.setTimeout(() => {
                     const radius = impactRadius[i];
                     const baseColor = lastImpactIsWater ? colorsWater[i] : colorsLand[i];
+                    console.log("made a circle");
                     const circle = viewer.entities.add({
                       position: Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt),
                       ellipse: {
