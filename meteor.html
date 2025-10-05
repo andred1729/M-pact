@@ -43,8 +43,8 @@
   </head>
   <body>
     <div class="overlay">
-      <h1>Globe Simulator</h1>
-      <p>Explore Cesium’s analytic geometries plus a scripted meteor entry with glowing trails and an impact burst.</p>
+      <h1>Impact Simulator!</h1>
+      <p>Follow along as your asteroid strikes Earth. View mitigation strategies and impacts on human life.</p>
       <div style="font-size:.85rem; color:#fcd34d; font-weight:500;">Asteroid: <span id="selectedAsteroidLabel">Default profile</span></div>
       <div id="selectedAsteroidStats" style="font-size:.78rem; color:#9ca3af;">Energy ~0.4 PJ · Diameter ~20 m</div>
       <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
@@ -177,15 +177,15 @@
           }
           const statsEl = document.getElementById('selectedAsteroidStats');
           if (statsEl) {
-            const energyPJ = storedSelection.energyJoules ? (storedSelection.energyJoules / 1e15).toFixed(2) : '0.40';
+            const energyPJ = storedSelection.energyJoules ? (storedSelection.energyJoules).toFixed(2) : '0.40';
             const size = storedSelection.sizeMeters ? storedSelection.sizeMeters.toFixed(0) : '20';
-            statsEl.textContent = `Energy ~${energyPJ} PJ · Diameter ~${size} m`;
+            statsEl.textContent = `Energy ~${energyPJ} Megatons · Diameter ~${size} m`;
           }
         } else {
           const labelEl = document.getElementById('selectedAsteroidLabel');
           if (labelEl) labelEl.textContent = 'Default profile';
           const statsEl = document.getElementById('selectedAsteroidStats');
-          if (statsEl) statsEl.textContent = 'Energy ~0.4 PJ · Diameter ~20 m';
+          if (statsEl) statsEl.textContent = 'Energy ~0.4 Megatons · Diameter ~20 m';
         }
         const targetCity = CITIES[METEOR.targetCity];
         METEOR.endLon = targetCity ? targetCity.lon : -90.0;
