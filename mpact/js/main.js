@@ -19,11 +19,7 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   timeline: false,
   vrButton: false,
 });
-<<<<<<< HEAD
 
-const STORAGE_KEY = 'mpact:selectedAsteroid';
-const selectedNameEl = document.getElementById('selectedAsteroidName');
-=======
 viewer.clock.shouldAnimate = true;
 
 // Remove Cesium toolbar buttons
@@ -101,7 +97,6 @@ chooseBtn.addEventListener("mouseout", () => {
 });
 const overlay = document.querySelector(".overlay");
 if (overlay) overlay.appendChild(chooseBtn);
->>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
 
 // === Clock window ===
 const start = Cesium.JulianDate.now();
@@ -206,19 +201,6 @@ function addAsteroid({
       leadTime: 0,
       trailTime,
     }),
-<<<<<<< HEAD
-
-    description: new Cesium.CallbackProperty((time) => {
-      const p = position.getValue(time);
-      if (!p) return name;
-      const c = Cesium.Cartographic.fromCartesian(p);
-      return `<h3>${name}</h3>
-              Lat/Lon: ${Cesium.Math.toDegrees(c.latitude).toFixed(2)}°, ${Cesium.Math.toDegrees(c.longitude).toFixed(2)}°<br>
-              Alt: ${(c.height/1000).toFixed(0)} km<br>
-              Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
-              Diameter: ${sizeMeters.toFixed(0)} m`;
-    }, false)
-=======
     description: new Cesium.CallbackProperty((time) => {
       const p = position.getValue(time);
       if (!p) return `<h3>${name}</h3>`;
@@ -232,7 +214,6 @@ function addAsteroid({
         <div>Energy: ${(energyJoules/1e15).toFixed(2)} PJ</div>
         <div>Diameter: ${sizeMeters.toFixed(0)} m</div>`;
     }, false),
->>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
   });
 
   e.mpactData = { id, name, energyJoules, sizeMeters, targetCity };
@@ -301,7 +282,6 @@ handler.setInputAction((movement) => {
 
 // === Asteroids ===
 const specs = [
-<<<<<<< HEAD
   {
     id: "2010 ER12",
     name: "2010 ER12",
@@ -401,12 +381,6 @@ const specs = [
     energyJoules: 8.0e14,
     sizeMeters: 5,
   },
-=======
-  { id: "a1", name: "Ast-Polar", altitude: 25_000_000, incDeg: 90,   RAANDeg: 0,   phaseDeg: 0,   modelScale: 500_000, pathColor: Cesium.Color.CYAN,   energyJoules: 1.2e15, sizeMeters: 45, targetCity: "chicago", usePrimitive: true },
-  { id: "a2", name: "Ast-30°",  altitude: 25_000_000, incDeg: 30,   RAANDeg: 60,  phaseDeg: 45,  modelScale: 700_000, pathColor: Cesium.Color.YELLOW, energyJoules: 6.0e14, sizeMeters: 30, targetCity: "chicago", usePrimitive: true },
-  { id: "a3", name: "Ast-63°",  altitude: 25_000_000, incDeg: 63.4, RAANDeg: 120, phaseDeg: 180, modelScale: 900_000, pathColor: Cesium.Color.ORANGE, energyJoules: 2.5e15, sizeMeters: 80, targetCity: "chicago", usePrimitive: true },
-  { id: "a4", name: "Ast-Silhouette", altitude: 25_000_000, incDeg: 51.6, RAANDeg: -90, phaseDeg: 270, modelScale: 600_000, pathColor: Cesium.Color.LIME, energyJoules: 8.0e14, sizeMeters: 35, targetCity: "chicago", usePrimitive: true, silhouette: { color: Cesium.Color.LIME, size: 4 } },
->>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
 ];
 const asteroids = specs.map(addAsteroid);
 
@@ -420,12 +394,8 @@ function setSelection(entity) {
 viewer.selectedEntityChanged.addEventListener(setSelection);
 setSelection(viewer.selectedEntity || null); // initialize overlay
 
-<<<<<<< HEAD
-btn.addEventListener('click', () => {
-=======
 // === Button: Save + go to next page (use RELATIVE path) ===
 chooseBtn.addEventListener("click", () => {
->>>>>>> 57532c3c07178ee25e11ea293bb73ed8bd70d3d5
   if (!currentSelection) {
     alert("Select an asteroid first.");
     return;
