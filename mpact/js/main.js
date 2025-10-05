@@ -154,6 +154,9 @@ function updateSelectionDisplay(spec) {
   if (selectedNameEl)  selectedNameEl.textContent  = spec.name;
   if (selectedStatsEl) {
     const energyPJ = (spec.energyJoules).toFixed(2);
+    const energyBombs = spec.energyBombs;
+    const sizeObjects = spec.sizeObjects;
+    const prob = spec.prob;
     selectedStatsEl.textContent = `Energy ~${energyPJ} Megaton (one million tons of TNT) · Diameter ~${spec.sizeMeters.toFixed(0)} m`;
   }
 }
@@ -176,7 +179,10 @@ function addAsteroid({
   usePrimitive = true,
   silhouette = { color: Cesium.Color.LIME, size: 3 },
   energyJoules = 4.0e14,
+  energyBombs = 5,
   sizeMeters = 20,
+  sizeObjects = "Roughly 8 Christmas Trees on top of each other",
+  prob = 1e-4,
   targetCity = "chicago",
 }) {
   const position = makeOrbitPosition({ start, stop, altitude, incDeg, RAANDeg, phaseDeg });
@@ -211,8 +217,11 @@ function addAsteroid({
       return `<h3>${name}</h3>
         <div>Lat/Lon: ${lat}°, ${lon}°</div>
         <div>Alt: ${altKm} km</div>
-        <div>Energy: ${(energyJoules/1e15).toFixed(2)} PJ</div>
-        <div>Diameter: ${sizeMeters.toFixed(0)} m</div>`;
+        <div>Energy: ${(energyJoules).toFixed(0)} Megatons (1 million tons of TNT)</div>
+        <div>Energy (scaled): ${energyBombs} Nuclear Bombs (Hiroshima)</div>
+        <div>Diameter: ${sizeMeters.toFixed(0)} m</div>
+        <div>Diameter (scaled): ${sizeObjects}</div>
+        <div>Probability of Earth Impact: 1 in ${(1/prob).toFixed(0)} </div>`;
     }, false),
   });
 
@@ -293,7 +302,10 @@ const specs = [
     pathColor: Cesium.Color.CYAN,
     meteorProfileId: "a1",
     energyJoules: 1.2e+5, 
+    energyBombs: 8000000,
     sizeMeters: 1012,
+    sizeObjects: "Spanning almost the length from the tip of Florida to the top of Georgia (1200m)! ",
+    prob: 1.3e-9,
   },
   {
     id: "2014 HN197",
@@ -305,8 +317,11 @@ const specs = [
     modelScale: 175_000,
     pathColor: Cesium.Color.YELLOW,
     meteorProfileId: "a2",
-    energyJoules: 6.0e14,
+    energyJoules: 4.3e+3,
+    energyBombs: 287000,
     sizeMeters: 350,
+    sizeObjects: "Taller than the Eiffel Tower (330m)",
+    prob: 6.5e-9, 
   },
   {
     id: "2023 TB2",
@@ -319,7 +334,10 @@ const specs = [
     pathColor: Cesium.Color.ORANGE,
     meteorProfileId: "a3",
     energyJoules: 5.3e+0,
+    energyBombs: 353,
     sizeMeters: 58,
+    sizeObjects: "The length of five yellow school buses, parked front-to-back",
+    prob: 6.5e-5,
   },
   {
     id: "2022 VF1",
@@ -334,7 +352,10 @@ const specs = [
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
     energyJoules: 1.2e+2,
+    energyBombs: 8000,
     sizeMeters: 120,
+    sizeObjects: "Almost as tall as Great Pyramid of Giza (138m)",
+    prob: 6.1e-8,
   },
   {
     id: "2000 WJ107",
@@ -349,7 +370,10 @@ const specs = [
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
     energyJoules: 2.4e+1,
+    energyBombs: 1600,
     sizeMeters: 81,
+    sizeObjects: "The height of a 17 story building",
+    prob: 7.5e-6,
   },
   {
     id: "2025 RM1",
@@ -364,7 +388,10 @@ const specs = [
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
     energyJoules: 2.4e0,
+    energyBombs: 160,
     sizeMeters: 38,
+    sizeObjects: "1.5 times a typical flagpole's height!",
+    prob: 6.3e-5,
   },
   {
     id: "2024 RS16",
@@ -379,7 +406,10 @@ const specs = [
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
     energyJoules: 4.9e-3,
+    energyBombs: 2,
     sizeMeters: 5,
+    sizeObjects: "2 and a half horses standing on top of each other",
+    prob: 2.6e-5,
   },
 ];
 const asteroids = specs.map(addAsteroid);
