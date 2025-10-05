@@ -75,7 +75,7 @@
       <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
         <button id="launchMeteor" type="button" class="btn-red" disabled>IMPACT!</button>
         <button id="returnToSelection" type="button" class="small">Choose a New Asteroid</button>
-        <button id="pickImpact" type="button" title="Click on the globe">Pick Impact</button>
+        <button id="pickImpact" type="button" title="Click on the globe to set the impact point">Pick Impact</button>
         <button id="timeline" type="button" class="btn-red" disabled>See Timeline</button>
         <button id="cityView" type="button" disabled>City view</button>
       </div>
@@ -138,7 +138,6 @@
           geocoder: false,
           homeButton: false,
           navigationHelpButton: false,
-
           fullscreenButton: false,
           selectionIndicator: false,
         };
@@ -198,8 +197,334 @@
           { name: "Cairo", lat: 30.0444, lon: 31.2357 },
           { name: "Johannesburg", lat: -26.2041, lon: 28.0473 },
         ];
-        const CITY_PROXIMITY_THRESHOLD_KM = 75;
+        const NEAREST_CITY_LABEL_THRESHOLD_KM = 250;
         const JOULE_RADIUS_SCALE = 1e-9;
+
+        const CRATER_SCRAPER = (() => {
+          const BASE_URL = 'https://impact.ese.ic.ac.uk/ImpactEarth/cgi-bin/crater.cgi';
+          const BASE_SPEED_MPH = 32000;
+          const MPH_TO_KM_PER_SEC = 0.00044704;
+          const DEFAULT_PARAMS = {
+            dist: '1',
+            pdens: '3000',
+            pdens_select: '0',
+            tdens: '1000',
+            tdens_select: '0',
+          };
+          const STORAGE_KEY = 'mpact:lastCraterReport';
+          let cacheKey = null;
+          let pending = null;
+          let latestReport = null;
+
+          function buildUrl(params) {
+            return `${BASE_URL}?${new URLSearchParams(params).toString()}`;
+          }
+
+          function splitByBr(html) {
+            if (!html) return [];
+            return html
+              .replace(/<br[^>]*>/gi, '|||BR|||')
+              .split('|||BR|||')
+              .map((s) => s.trim())
+              .filter(Boolean);
+          }
+
+          function htmlToCleanText(fragment) {
+            if (!fragment) return '';
+            const normalized = fragment
+              .replace(/<sup>(.*?)<\/sup>/gi, '^$1')
+              .replace(/&nbsp;/gi, ' ');
+            const template = document.createElement('template');
+            template.innerHTML = normalized;
+            const text = template.content.textContent || '';
+            return text.replace(/\s+/g, ' ').trim();
+          }
+
+          function extractBullets(node) {
+            const bullets = [];
+            node.querySelectorAll('ul li').forEach((li) => {
+              const t = htmlToCleanText(li.innerHTML || li.textContent);
+              if (t) bullets.push(t);
+            });
+            return bullets;
+          }
+
+          function extractDdLines(dd) {
+            const raw = dd.innerHTML || dd.textContent || '';
+            const parts = splitByBr(raw);
+            if (parts.length === 0) {
+              const t = htmlToCleanText(raw);
+              return t ? [t] : [];
+            }
+            return parts
+              .map((p) => htmlToCleanText(p))
+              .filter(Boolean);
+          }
+
+          function parseSections(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const data = {};
+            const notice = doc.querySelector('body > p');
+            if (notice) {
+              const txt = notice.textContent?.replace(/\s+/g, ' ').trim();
+              if (txt) data.notice = txt;
+            }
+
+            doc.querySelectorAll('dl').forEach((dl) => {
+              const heading = dl.querySelector(':scope > dt > h2');
+              if (!heading) return;
+              const title = heading.textContent?.trim().replace(/:$/, '');
+              if (!title) return;
+              const section = [];
+              dl.querySelectorAll(':scope > dd').forEach((dd) => {
+                const bullets = extractBullets(dd);
+                if (bullets.length) section.push({ bullets });
+                const lines = extractDdLines(dd);
+                lines.forEach((line) => section.push(line));
+              });
+              data[title] = section;
+            });
+
+            if (data['Your Inputs']) {
+              const kv = {};
+              for (const entry of data['Your Inputs']) {
+                if (typeof entry !== 'string') continue;
+                const idx = entry.indexOf(':');
+                if (idx > -1) {
+                  const key = entry.slice(0, idx).trim();
+                  const val = entry.slice(idx + 1).trim();
+                  if (key) kv[key] = val;
+                }
+              }
+              data['Your Inputs'] = kv;
+            }
+
+            return data;
+          }
+
+          function sciToNumber(str) {
+            if (!str) return NaN;
+            const cleaned = str.replace(/,/g, '').trim();
+            const sci = cleaned.match(/^([+-]?\d*\.?\d+)\s*(?:x|\*\s*10\^?)\s*10\^?(-?\d+)$/i);
+            if (sci) return Number(sci[1]) * Math.pow(10, Number(sci[2]));
+            const plain = cleaned.match(/^([+-]?\d*\.?\d+)(?:e([+-]?\d+))?$/i);
+            if (plain) return Number(cleaned);
+            return NaN;
+          }
+
+          function extractPairs(line) {
+            const pairs = [];
+            if (!line) return pairs;
+            const chunks = line
+              .split(/\s=\s|=| by /i)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            for (const chunk of chunks) {
+              const match = chunk.match(/([+-]?\d*\.?\d+(?:\s*(?:x|\*\s*10\^?)\s*10\^?-?\d+)?)(.*)$/i);
+              if (!match) continue;
+              const numStr = match[1].trim();
+              let unit = match[2].trim();
+              unit = unit
+                .replace(/\(.*?\)/g, '')
+                .replace(/\s+per\s+/gi, '/')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/\bMegaTons(?: TNT)?\b/i, 'megatons')
+                .replace(/\bJoules?\b/i, 'J')
+                .replace(/\bmeters?\b/i, 'm')
+                .replace(/\bkilometers?\b/i, 'km')
+                .replace(/\bmiles?\b/i, 'miles')
+                .replace(/\bfeet\b/i, 'ft')
+                .replace(/\byears?\b/i, 'years')
+                .replace(/\bkm\s*per\s*second\b/i, 'km/s')
+                .replace(/\bmiles\s*per\s*second\b/i, 'miles/s')
+                .replace(/\bkm\s*\/\s*second\b/i, 'km/s')
+                .replace(/\bmiles\s*\/\s*second\b/i, 'miles/s')
+                .replace(/\bkm3\b/i, 'km3')
+                .replace(/\bmiles3\b/i, 'mi3')
+                .replace(/\skg\/m\^?3/i, 'kg/m3');
+              const value = sciToNumber(numStr);
+              if (!Number.isNaN(value)) {
+                pairs.push({ value, unit: unit || null });
+              }
+            }
+            if (pairs.length === 0) {
+              const fallback = line.match(/([+-]?\d*\.?\d+(?:\s*(?:x|\*\s*10\^?)\s*10\^?-?\d+)?)(?:\s*)years/i);
+              if (fallback) {
+                const value = sciToNumber(fallback[1]);
+                if (!Number.isNaN(value)) pairs.push({ value, unit: 'years' });
+              }
+            }
+            return pairs;
+          }
+
+          function putPair(obj, base, pair, idx = null) {
+            let suffix = '';
+            if (pair.unit) {
+              suffix =
+                '_' +
+                pair.unit
+                  .toLowerCase()
+                  .replace(/\s+/g, '_')
+                  .replace(/[^\w/]/g, '')
+                  .replace(/\//g, '_per_');
+            }
+            const key = idx == null ? `${base}${suffix}` : `${base}_${idx}${suffix}`;
+            obj[key] = pair.value;
+          }
+
+          function simplify(sections) {
+            const out = {};
+            if (sections['Your Inputs']) {
+              for (const [k, v] of Object.entries(sections['Your Inputs'])) {
+                const key = k.toLowerCase().replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
+                out[`input_${key}`] = v;
+              }
+            }
+
+            function scan(sectionName, matchers) {
+              const lines = sections[sectionName] || [];
+              for (const line of lines) {
+                if (typeof line !== 'string') continue;
+                for (const matcher of matchers) {
+                  const hit = matcher.pattern.exec(line);
+                  if (!hit) continue;
+                  const pairs = extractPairs(line);
+                  if (matcher.custom) {
+                    matcher.custom(out, line, hit, pairs);
+                  } else if (pairs.length) {
+                    if (pairs.length === 1) putPair(out, matcher.base, pairs[0]);
+                    else pairs.forEach((p, i) => putPair(out, matcher.base, p, i + 1));
+                  }
+                  break;
+                }
+              }
+            }
+
+            scan('Energy', [
+              { pattern: /energy before atmospheric entry/i, base: 'energy_before_entry' },
+              {
+                pattern: /average interval between impacts/i,
+                custom: (o, line) => {
+                  const v = extractPairs(line).find((p) => (p.unit || '').includes('years'));
+                  if (v) putPair(o, 'avg_interval', v);
+                },
+              },
+            ]);
+
+            scan('Atmospheric Entry', [
+              { pattern: /begins to break.?up at an altitude/i, base: 'breakup_altitude' },
+              { pattern: /mass of projectile strikes .* velocity/i, base: 'ground_velocity' },
+              { pattern: /energy lost in the atmosphere/i, base: 'energy_lost_atmosphere' },
+              { pattern: /impact energy/i, base: 'impact_energy' },
+              {
+                pattern: /ellipse of dimension/i,
+                custom: (o, line) => {
+                  const ps = extractPairs(line).filter((p) => (p.unit || '').toLowerCase() === 'km');
+                  if (ps[0]) putPair(o, 'fragment_ellipse_km_a', ps[0]);
+                  if (ps[1]) putPair(o, 'fragment_ellipse_km_b', ps[1]);
+                },
+              },
+            ]);
+
+            scan('Crater Dimensions', [
+              { pattern: /transient crater.*diameter/i, base: 'transient_crater_diameter' },
+              { pattern: /transient crater depth/i, base: 'transient_crater_depth' },
+              { pattern: /final crater.*diameter/i, base: 'final_crater_diameter' },
+              { pattern: /final crater depth/i, base: 'final_crater_depth' },
+              { pattern: /volume of the target melted or vaporized/i, base: 'melt_volume' },
+              { pattern: /average thickness/i, base: 'avg_melt_thickness' },
+            ]);
+
+            return out;
+          }
+
+          function estimateCraterRadius(report) {
+            if (!report) return null;
+            const flat = report.flat || report;
+            if (!flat) return null;
+
+            const unitSources = [
+              ['final_crater_diameter_m', 1],
+              ['final_crater_diameter_km', 1000],
+              ['final_crater_diameter_miles', 1609.344],
+              ['final_crater_diameter_ft', 0.3048],
+              ['transient_crater_diameter_m', 1],
+              ['transient_crater_diameter_km', 1000],
+              ['transient_crater_diameter_miles', 1609.344],
+              ['transient_crater_diameter_ft', 0.3048],
+            ];
+
+            for (const [key, factor] of unitSources) {
+              const raw = flat[key];
+              if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) continue;
+              return (raw * factor) / 2;
+            }
+
+            return null;
+          }
+
+          async function fetchReport(params) {
+            const url = buildUrl(params);
+            const response = await fetch(url, { mode: 'cors' });
+            if (!response.ok) throw new Error(`Crater fetch failed: ${response.status}`);
+            const html = await response.text();
+            const sections = parseSections(html);
+            const flat = simplify(sections);
+            return { url, params, sections, flat, fetchedAt: Date.now() };
+          }
+
+          function persist(report) {
+            try {
+              sessionStorage.setItem(STORAGE_KEY, JSON.stringify(report));
+            } catch (err) {
+              console.warn('[crater] persist failed', err);
+            }
+          }
+
+          function buildQueryParams(profile, angleDeg, speedMultiplier) {
+            const diameter = Math.max(1, profile?.sizeMeters || 20);
+            const kmPerSec = Math.max(0.1, BASE_SPEED_MPH * Math.max(speedMultiplier, 0.1) * MPH_TO_KM_PER_SEC);
+            const angle = Math.max(1, Math.min(89, angleDeg || 30));
+            return {
+              ...DEFAULT_PARAMS,
+              diam: diameter.toFixed(2),
+              vel: kmPerSec.toFixed(2),
+              theta: angle.toFixed(2),
+            };
+          }
+
+          function ensureReport(params) {
+            const key = JSON.stringify(params);
+            if (cacheKey === key && pending) return pending;
+            cacheKey = key;
+            pending = fetchReport(params)
+              .then((report) => {
+                latestReport = report;
+                persist(report);
+                return report;
+              })
+              .catch((err) => {
+                if (cacheKey === key) pending = null;
+                throw err;
+              });
+            return pending;
+          }
+
+          return {
+            buildQueryParams,
+            ensureReport,
+            estimateCraterRadius,
+            getLatest: () => latestReport,
+            persistLatest: () => { if (latestReport) persist(latestReport); },
+            storageKey: STORAGE_KEY,
+            baseSpeedMph: BASE_SPEED_MPH,
+            mphToKmPerSec: MPH_TO_KM_PER_SEC,
+          };
+        })();
+
+        const CITY_VIEW_CONTEXT_KEY = 'mpact:cityViewContext';
 
         const METEOR = {
           startLon: -120.0, startLat: 80.0, startAlt: 900000.0,
@@ -210,7 +535,12 @@
           useModel: false, modelUri: "/models/asteroid.glb",
           tailExtensionFactor: 3.0,              // how many path-lengths to extend backward before the animation
           tailMaxPoints: 600,                    // cap the stored tail to limit memory
-          tailAddMinDistance: 5000               // meters between recorded samples along the tail
+          tailAddMinDistance: 5000,              // meters between recorded samples along the tail
+          craterReport: null,
+          craterParams: null,
+          craterParamsKey: null,
+          cityViewContext: null,
+          craterRadiusEstimate: null,
         };
 
         const STORAGE_KEY = 'mpact:selectedAsteroid';
@@ -241,13 +571,13 @@
           if (statsEl) {
             const energyPJ = storedSelection.energyJoules ? (storedSelection.energyJoules).toFixed(2) : '0.40';
             const size = storedSelection.sizeMeters ? storedSelection.sizeMeters.toFixed(0) : '20';
-            statsEl.textContent = `Energy ~${energyPJ} Megatons · Diameter ~${size} m`;
+            statsEl.textContent = `Energy ~${energyPJ} Megatons of TNT · Diameter ~${size} m`;
           }
         } else {
           const labelEl = document.getElementById('selectedAsteroidLabel');
           if (labelEl) labelEl.textContent = 'Default profile';
           const statsEl = document.getElementById('selectedAsteroidStats');
-          if (statsEl) statsEl.textContent = 'Energy ~0.4 Megatons of TNT· Diameter ~20 m';
+          if (statsEl) statsEl.textContent = 'Energy ~0.4 Megatons · Diameter ~20 m';
         }
         const targetCity = CITIES[METEOR.targetCity];
         METEOR.endLon = targetCity ? targetCity.lon : -90.0;
@@ -408,11 +738,6 @@
 
         const launchButton = document.getElementById("launchMeteor");
         const returnButton = document.getElementById("returnToSelection");
-        const timelineButton = document.getElementById("timeline");
-
-timelineButton?.addEventListener('click', () => { window.location.href = '/timeline.html';  // change to your actual page path
-});
-
         returnButton?.addEventListener('click', () => { window.location.href = '/'; });
         const angleSlider = document.getElementById("impactAngle");
         const angleVal    = document.getElementById("impactAngleVal");
@@ -420,6 +745,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
         angleSlider?.addEventListener("input", () => {
           impactAngleDeg = Number(angleSlider.value);
           angleVal.textContent = `${impactAngleDeg}°`;
+          if (METEOR.cityViewContext && !lastImpactIsWater) refreshCraterReport();
         });
         const speedSlider = document.getElementById("speedMultiplier");
         const speedVal    = document.getElementById("speedMultiplierVal");
@@ -428,6 +754,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           speedMult = Number(speedSlider.value);
           speedVal.textContent = `${(speedMult * 32000).toFixed(0)} mph`;
           viewer.clock.multiplier = speedMult;
+          if (METEOR.cityViewContext && !lastImpactIsWater) refreshCraterReport();
         });
 
         let meteorActive = false;
@@ -509,30 +836,67 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           cityLabelEntity = null;
         }
 
-        function resetCityViewButton(reason = 'City view available after meteor landing near a major city.') {
-          if (!cityViewBtn) return;
-          cityViewPayload = null;
-          cityViewBtn.disabled = true;
-          cityViewBtn.classList.remove('btn-ready');
-          cityViewBtn.title = reason;
+        function refreshCraterReport() {
+          const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
+          if (!asteroidProfile) return null;
+          const craterParams = CRATER_SCRAPER.buildQueryParams(asteroidProfile, impactAngleDeg, speedMult);
+          const paramsKey = JSON.stringify(craterParams);
+          const paramsChanged = METEOR.craterParamsKey !== paramsKey;
+          METEOR.craterParams = craterParams;
+          METEOR.craterParamsKey = paramsKey;
+          if (paramsChanged) METEOR.craterReport = null;
+          return CRATER_SCRAPER.ensureReport(craterParams)
+            .then((report) => {
+              METEOR.craterReport = report;
+              window.latestCraterReport = report;
+              return report;
+            })
+            .catch((err) => {
+              console.warn('[crater] unable to fetch crater report', err);
+              throw err;
+            });
         }
 
-        function enableCityViewButton(payload, nearbyCity) {
-          cityViewPayload = payload;
+        function markCityViewPending(message = 'City view unlocks after impact completes.') {
           if (!cityViewBtn) return;
+          cityViewBtn.disabled = true;
+          cityViewBtn.classList.remove('btn-ready');
+          cityViewBtn.title = message;
+        }
+
+        function resetCityViewButton(reason = 'City view available after selecting a land impact.') {
+          if (!cityViewBtn) return;
+          cityViewPayload = null;
+          METEOR.cityViewContext = null;
+          markCityViewPending(reason);
+        }
+
+        function setCityViewContext({ impactLat, impactLon } = {}) {
+          const lat = Number(impactLat);
+          const lon = Number(impactLon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+          METEOR.cityViewContext = { impactLat: lat, impactLon: lon };
+          cityViewPayload = { impactLat: lat.toFixed(4), impactLon: lon.toFixed(4) };
+          refreshCraterReport();
+        }
+
+        function activateCityViewButton(message = '') {
+          if (!cityViewBtn) return;
+          if (!METEOR.cityViewContext) return;
           cityViewBtn.disabled = false;
           cityViewBtn.classList.add('btn-ready');
-          cityViewBtn.title = `Inspect ${nearbyCity.name} (${payload.distanceKm} km from impact)`;
+          cityViewBtn.title = message || `Inspect impact site (${METEOR.cityViewContext.impactLat.toFixed(2)}°, ${METEOR.cityViewContext.impactLon.toFixed(2)}°)`;
         }
 
         function highlightNearbyCity(city, distanceKm) {
           clearCityLabel();
+          const labelHeight = Math.max(METEOR.endAlt + 5000, 4000);
           cityLabelEntity = viewer.entities.add({
-            position: Cesium.Cartesian3.fromDegrees(city.lon, city.lat, 0.0),
+            position: Cesium.Cartesian3.fromDegrees(city.lon, city.lat, labelHeight),
             label: {
               text: `${city.name} (${distanceKm.toFixed(1)} km)`,
               font: '16px "Segoe UI", sans-serif',
-              fillColor: Cesium.Color.WHITE,
+              fillColor: Cesium.Color.fromCssColorString('#d1d5db'),
               outlineColor: Cesium.Color.BLACK,
               outlineWidth: 2,
               style: Cesium.LabelStyle.FILL_AND_OUTLINE,
@@ -559,11 +923,11 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           return nearest;
         }
 
-        function startMeteorRun() {
+        async function startMeteorRun() {
           if (!launchButton) { console.error("Simulate button is missing."); return; }
           if (meteorActive) return;
 
-          resetCityViewButton();
+          resetCityViewButton('City view unlocks after impact completes.');
           clearCityLabel();
 
           // Cleanup from prior runs (keep epicenter spheres & crosshair until new pick)
@@ -577,12 +941,28 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
 
           launchButton.disabled = true;
           launchButton.classList.remove('btn-pulse');
-          timelineButton.disabled = true;
 
           const asteroidProfile = ASTEROIDS[METEOR.asteroidId];
-          const impactRadius = asteroidProfile
+
+          let craterReport = METEOR.craterReport;
+          try {
+            const maybePromise = refreshCraterReport();
+            if (maybePromise && typeof maybePromise.then === 'function') {
+              craterReport = await maybePromise;
+            }
+          } catch (err) {
+            console.warn('[crater] using fallback impact radius after fetch error', err);
+          }
+          if (!craterReport) craterReport = METEOR.craterReport;
+
+          const craterRadiusEstimate = CRATER_SCRAPER.estimateCraterRadius(craterReport);
+          const fallbackRadius = asteroidProfile
             ? Math.max(asteroidProfile.sizeMeters * 500.0, asteroidProfile.joules * JOULE_RADIUS_SCALE)
             : 50000.0;
+          const impactRadius = Number.isFinite(craterRadiusEstimate) && craterRadiusEstimate > 0
+            ? craterRadiusEstimate
+            : fallbackRadius;
+          METEOR.craterRadiusEstimate = impactRadius;
 
           meteorActive = true;
           if (pickBtn) pickBtn.disabled = true;
@@ -692,23 +1072,23 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
             if (pickBtn) pickBtn.disabled = false;
             launchButton.disabled = false;
             launchButton.classList.add('btn-pulse');
-            timelineButton.disabled = false;
             // Ensure spheres are present at the epicenter
             createEpicenterSpheres();
             const nearestCity = findNearestMajorCity(METEOR.endLat, METEOR.endLon);
-            if (nearestCity && nearestCity.distanceKm <= CITY_PROXIMITY_THRESHOLD_KM) {
+            let labelMessage = 'Inspect impact site';
+            if (nearestCity && nearestCity.distanceKm <= NEAREST_CITY_LABEL_THRESHOLD_KM) {
               highlightNearbyCity(nearestCity.city, nearestCity.distanceKm);
-              enableCityViewButton({
-                city: nearestCity.city.name,
-                cityLat: nearestCity.city.lat.toFixed(4),
-                cityLon: nearestCity.city.lon.toFixed(4),
-                impactLat: METEOR.endLat.toFixed(4),
-                impactLon: METEOR.endLon.toFixed(4),
-                distanceKm: nearestCity.distanceKm.toFixed(1),
-              }, nearestCity.city);
+              labelMessage = `Inspect impact site near ${nearestCity.city.name} (${nearestCity.distanceKm.toFixed(1)} km)`;
             } else {
               clearCityLabel();
-              resetCityViewButton(`No major city within ${CITY_PROXIMITY_THRESHOLD_KM} km of impact.`);
+            }
+
+            if (!lastImpactIsWater) {
+              setCityViewContext({ impactLat: METEOR.endLat, impactLon: METEOR.endLon });
+              activateCityViewButton(labelMessage);
+            } else {
+              clearCityLabel();
+              resetCityViewButton('Impact is over water; city view unavailable.');
             }
           };
 
@@ -848,7 +1228,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
             cartesian = scene.globe.pick(ray, scene);
           }
 
-          // Try 3: Ellipsoid fallback (always works if you click on the globe)
+          // Try 3: Ellipsoid fallback (agit ways works if you click on the globe)
           if (!cartesian) {
             cartesian = scene.camera.pickEllipsoid(evt.position, Cesium.Ellipsoid.WGS84);
           }
@@ -864,6 +1244,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           METEOR.endLon = lon;
           METEOR.endLat = lat;
           updateImpactDisplay();
+          resetCityViewButton('Evaluating impact location...');
 
           // Water/land classification
           await masksReady;
@@ -873,7 +1254,13 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           createEpicenterSpheres();
           updateImpactCross(crossColor);
           clearCityLabel();
-          resetCityViewButton();
+
+          if (lastImpactIsWater) {
+            resetCityViewButton('Impact is over water; city view unavailable.');
+          } else {
+            setCityViewContext({ impactLat: METEOR.endLat, impactLon: METEOR.endLon });
+            markCityViewPending();
+          }
 
           if (centerBlurb) setTimeout(() => (centerBlurb.style.display = 'none'), 600);
           if (launchButton) { launchButton.disabled = false; launchButton.classList.add('btn-pulse'); }
@@ -885,9 +1272,57 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
 
         // === End impact picking ===
 
-        if (launchButton) launchButton.addEventListener("click", startMeteorRun);
-        cityViewBtn?.addEventListener("click", () => {
+        if (launchButton) launchButton.addEventListener("click", () => {
+          startMeteorRun().catch((err) => console.error('[meteor] run failed', err));
+        });
+        cityViewBtn?.addEventListener("click", async () => {
           if (!cityViewPayload) return;
+
+          const impactLat = Number(METEOR.cityViewContext?.impactLat ?? METEOR.endLat);
+          const impactLon = Number(METEOR.cityViewContext?.impactLon ?? METEOR.endLon);
+          if (!Number.isFinite(impactLat) || !Number.isFinite(impactLon)) {
+            console.warn('[city-view] missing impact coordinates');
+            return;
+          }
+
+          const context = {
+            impactLat,
+            impactLon,
+            craterRadiusMeters: null,
+          };
+
+          let report = METEOR.craterReport;
+          if (!report) {
+            try {
+              const promise = refreshCraterReport();
+              if (promise && typeof promise.then === 'function') {
+                report = await promise;
+              } else if (METEOR.craterParams) {
+                report = await CRATER_SCRAPER.ensureReport(METEOR.craterParams);
+              }
+            } catch (err) {
+              console.warn('[crater] fetch before city view failed', err);
+            }
+          }
+
+          if (report) {
+            const radius = CRATER_SCRAPER.estimateCraterRadius(report);
+            if (Number.isFinite(radius) && radius > 0) {
+              context.craterRadiusMeters = radius;
+            }
+            try {
+              sessionStorage.setItem(CRATER_SCRAPER.storageKey, JSON.stringify(report));
+            } catch (err) {
+              console.warn('[crater] unable to persist report for city view', err);
+            }
+          }
+
+          try {
+            sessionStorage.setItem(CITY_VIEW_CONTEXT_KEY, JSON.stringify(context));
+          } catch (err) {
+            console.warn('[city-view] unable to persist context', err);
+          }
+
           const destination = new URL('./city-view-placeholder.html', window.location.href);
           for (const [key, value] of Object.entries(cityViewPayload)) {
             destination.searchParams.set(key, value);

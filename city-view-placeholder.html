@@ -37,13 +37,62 @@
     });
     viewer.scene.globe.enableLighting = true;
 
-    const centerLon = -87.6298;
-    const centerLat = 41.8781;
-    const radiusMeters = 1000;
+    const REPORT_STORAGE_KEY = 'mpact:lastCraterReport';
+    const CONTEXT_STORAGE_KEY = 'mpact:cityViewContext';
 
-    // Fly the camera to Chicago at the given longitude, latitude, and height.
+    function safeParseJSON(raw) {
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch (err) { console.warn('[city-view] unable to parse stored JSON', err); return null; }
+    }
+
+    function estimateCraterRadius(report) {
+      if (!report) return null;
+      const flat = report.flat || report;
+      if (!flat) return null;
+      const sources = [
+        ['final_crater_diameter_m', 1],
+        ['final_crater_diameter_km', 1000],
+        ['final_crater_diameter_miles', 1609.344],
+        ['final_crater_diameter_ft', 0.3048],
+        ['transient_crater_diameter_m', 1],
+        ['transient_crater_diameter_km', 1000],
+        ['transient_crater_diameter_miles', 1609.344],
+        ['transient_crater_diameter_ft', 0.3048],
+      ];
+      for (const [key, factor] of sources) {
+        const value = Number(flat[key]);
+        if (Number.isFinite(value) && value > 0) {
+          return (value * factor) / 2;
+        }
+      }
+      return null;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const storedContext = safeParseJSON(sessionStorage.getItem(CONTEXT_STORAGE_KEY));
+    const storedReport = safeParseJSON(sessionStorage.getItem(REPORT_STORAGE_KEY));
+
+    let centerLat = Number(storedContext?.impactLat ?? params.get('impactLat'));
+    let centerLon = Number(storedContext?.impactLon ?? params.get('impactLon'));
+    if (!Number.isFinite(centerLat) || !Number.isFinite(centerLon)) {
+      centerLat = 41.8781;
+      centerLon = -87.6298;
+    }
+
+    let radiusMeters = Number(storedContext?.craterRadiusMeters);
+    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+      const estimated = estimateCraterRadius(storedReport);
+      if (Number.isFinite(estimated) && estimated > 0) {
+        radiusMeters = estimated;
+      }
+    }
+    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+      radiusMeters = 1000;
+    }
+
+    const cameraHeight = Math.max(radiusMeters * 8, 400);
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 400),
+      destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, cameraHeight),
       orientation: {
         heading: Cesium.Math.toRadians(0.0),
         pitch: Cesium.Math.toRadians(-15.0),
@@ -72,21 +121,19 @@
     }
 
     function generateCirclePolygon(lon, lat, r, pts = 500){
-      let points = [];
+      const points = [];
       const mpd = 111139; // meters per degree
       for (let i = 0; i < pts; i++) {
         const deg = ((i / pts) * 2 * Math.PI);
         const x_m = r * Math.cos(deg);
         const y_m = r * Math.sin(deg);
-        console.log(deg);
         points.push((x_m / mpd) + lon);
         points.push((y_m / mpd) + lat);
       }
       return points;
     }
 
-    const circlePositions = generateCirclePolygon(centerLon, centerLat, radiusMeters); 
-    console.log(circlePositions)
+    const circlePositions = generateCirclePolygon(centerLon, centerLat, radiusMeters);
 
     const clippingPolygons = new Cesium.ClippingPolygonCollection({
       polygons: [
@@ -106,14 +153,15 @@
     buildingTileset.clippingPolygons = bigClippingPolygons;
     viewer.scene.globe.clippingPolygons = clippingPolygons;
 
-    const craterPosition = Cesium.Cartesian3.fromDegrees(-87.6298, 41.8781, 130); // example: Chicago
+    const craterHeight = Math.max(radiusMeters * 0.1, 130);
+    const craterPosition = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, craterHeight);
 
     const craterMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(craterPosition);
 
     const craterModel = await Cesium.Model.fromGltfAsync({
       url: 'models/crater_fr 1.glb',  // your crater GLB file
       modelMatrix: craterMatrix,
-      scale: 1000   // match your crater size (e.g. 1 = 1 km if model was built that way)
+      scale: Math.max(radiusMeters, 1)
     });
 
     viewer.scene.primitives.add(craterModel);
