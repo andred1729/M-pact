@@ -49,7 +49,7 @@
 
       /* Center blurb */
       .center-blurb { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 12;
-        background: rgba(15,23,42,.7); border: 1px solid rgba(255,99,71,.5); border-radius: .85rem; padding: .85rem 1.1rem;
+        background: rgba(15,23,42,.7); border: 1px solid rgba(78, 35, 82, 0.5); border-radius: .85rem; padding: .85rem 1.1rem;
         font-weight: 600; letter-spacing: .015em; box-shadow: 0 14px 40px rgba(0,0,0,.35); text-align: center; }
       /* allow clicks to pass through the center blurb overlay */
       .center-blurb { pointer-events: none; }
@@ -75,8 +75,8 @@
       <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
         <button id="launchMeteor" type="button" class="btn-red" disabled>IMPACT!</button>
         <button id="returnToSelection" type="button" class="small">Choose a New Asteroid</button>
-        <button id="pickImpact" type="button" title="Click on the globe to set the impact point">Pick Impact</button>
-        <button id="timeline" type="button" class="btn-red" disabled>See Timeline</button>
+        <button id="pickImpact" type="button" title="Click on the globe">Pick Impact</button>
+        <button id="timeline" type="button" disabled>See Timeline</button>
         <button id="cityView" type="button" disabled>City view</button>
       </div>
       <div style="display:flex; align-items:center; gap:.5rem; font-size:.85rem; margin-top:.35rem">
@@ -177,7 +177,7 @@
           }
         };
         const ASTEROIDS = {
-          chelyabinskLike: { joules: 4.0e14, sizeMeters: 20 },
+          chelyabinskLike: { joules: 0.4, sizeMeters: 20 },
           a1: { joules: 1.2e15, sizeMeters: 45 },
           a2: { joules: 6.0e14, sizeMeters: 30 },
           a3: { joules: 2.5e15, sizeMeters: 80 },
@@ -559,6 +559,9 @@
               joules: storedSelection.energyJoules || ASTEROIDS.chelyabinskLike.joules,
               sizeMeters: storedSelection.sizeMeters || ASTEROIDS.chelyabinskLike.sizeMeters,
             };
+            console.log("create new asteroid");
+            console.log(storedSelection.meteorProfileId);
+            console.log(ASTEROIDS[storedSelection.meteorProfileId].joules);
           }
           if (storedSelection.targetCity && CITIES[storedSelection.targetCity]) {
             METEOR.targetCity = storedSelection.targetCity;
@@ -774,14 +777,22 @@
         }
         function createEpicenterSpheres() {
           clearEpicenterSpheres();
-          const radii = [60, 120, 200, 300]; // very small concentric spheres (meters)
+          const radii = [60, 120, 200, 300, 500]; // very small concentric spheres (meters)
           const pos = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt);
+          const colors = [
+            Cesium.Color.RED,
+            Cesium.Color.DEEPPINK,
+            Cesium.Color.ORANGE,
+            Cesium.Color.YELLOW,
+            Cesium.Color.GREEN
+          ];
           radii.forEach((r, i) => {
+            const color = colors[i];
             const ent = viewer.entities.add({
               position: pos,
               ellipsoid: {
                 radii: new Cesium.Cartesian3(r, r, r),
-                material: Cesium.Color.ORANGE.withAlpha(0.22 + i * 0.12),
+                material: color.withAlpha(0.22 + i * 0.12),
                 outline: true,
                 outlineColor: Cesium.Color.ORANGE.withAlpha(0.65 + i * 0.06),
                 stackPartitions: 16,
@@ -954,7 +965,7 @@
             console.warn('[crater] using fallback impact radius after fetch error', err);
           }
           if (!craterReport) craterReport = METEOR.craterReport;
-
+          
           const craterRadiusEstimate = CRATER_SCRAPER.estimateCraterRadius(craterReport);
           const fallbackRadius = asteroidProfile
             ? Math.max(asteroidProfile.sizeMeters * 500.0, asteroidProfile.joules * JOULE_RADIUS_SCALE)
@@ -963,6 +974,9 @@
             ? craterRadiusEstimate
             : fallbackRadius;
           METEOR.craterRadiusEstimate = impactRadius;
+          const K = 1000*asteroidProfile.joules ** (1/3);
+          console.log("K:",K);
+          impactRadius = [1.8 * K, 2.5 * K, 3.3 * K, 6.2 * K, 16.1 * K];
 
           meteorActive = true;
           if (pickBtn) pickBtn.disabled = true;
@@ -1155,11 +1169,25 @@
               // Expanding 2D shock rings (keep existing visual)
               if (impactCircleEntities.length === 0) {
                 const circleCount = 5, delayMs = 1000;
-                const radiusStep = impactRadius / circleCount;
-                const baseColor = lastImpactIsWater ? Cesium.Color.BLUE : Cesium.Color.RED;
+                const colorsLand = [
+                  Cesium.Color.RED,
+                  Cesium.Color.DEEPPINK,
+                  Cesium.Color.ORANGE,
+                  Cesium.Color.YELLOW,
+                  Cesium.Color.GREEN
+                ];
+                const colorsWater = [
+                  Cesium.Color.GREEN,
+                  Cesium.Color.LIGHTSEAGREEN,
+                  Cesium.Color.MEDIUMSLATEBLUE,
+                  Cesium.Color.SKYBLUE,
+                  Cesium.Color.LIGHTSTEELBLUE
+                ];
                 for (let i = 0; i < circleCount; i++) {
                   const timerId = window.setTimeout(() => {
-                    const radius = radiusStep * (i + 1);
+                    const radius = impactRadius[i];
+                    const baseColor = lastImpactIsWater ? colorsWater[i] : colorsLand[i];
+                    console.log("made a circle");
                     const circle = viewer.entities.add({
                       position: Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, METEOR.endAlt),
                       ellipse: {
