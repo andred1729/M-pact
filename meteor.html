@@ -113,6 +113,7 @@
     <script>
       window.CESIUM_BASE_URL = "./node_modules/cesium/Build/Cesium/";
       window.CESIUM_ION_TOKEN = "__CESIUM_ION_TOKEN__";
+
     </script>
     <script src="./node_modules/cesium/Build/Cesium/Cesium.js"></script>
     <!-- Turf & TopoJSON from CDNs (pinned versions) -->
@@ -231,7 +232,7 @@
           if (statsEl) {
             const energyPJ = storedSelection.energyJoules ? (storedSelection.energyJoules).toFixed(2) : '0.40';
             const size = storedSelection.sizeMeters ? storedSelection.sizeMeters.toFixed(0) : '20';
-            statsEl.textContent = `Energy ~${energyPJ} Megatons · Diameter ~${size} m`;
+            statsEl.textContent = `Energy ~${energyPJ} Megatons of TNT· Diameter ~${size} m`;
           }
         } else {
           const labelEl = document.getElementById('selectedAsteroidLabel');

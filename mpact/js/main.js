@@ -225,8 +225,6 @@ function addAsteroid({
       const lon = Cesium.Math.toDegrees(c.longitude).toFixed(2);
       const altKm = (c.height / 1000).toFixed(0);
       return `<h3>${name}</h3>
-        <div>Lat/Lon: ${lat}°, ${lon}°</div>
-        <div>Alt: ${altKm} km</div>
         <div>Energy: ${(energyJoules).toFixed(0)} Megatons (1 million tons of TNT)</div>
         <div>Energy (scaled): ${energyBombs} Nuclear Bombs (Hiroshima)</div>
         <div>Diameter: ${sizeMeters.toFixed(0)} m</div>
