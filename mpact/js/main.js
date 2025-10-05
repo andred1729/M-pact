@@ -69,7 +69,7 @@ const selectedStatsEl =
 // Gradient “Choose a Meteor” button in overlay
 const chooseBtn = document.createElement("button");
 chooseBtn.id = "chooseMeteorBtn";
-chooseBtn.textContent = "Choose a Meteor";
+chooseBtn.textContent = "Choose this Asteroid!";
 chooseBtn.type = "button";
 chooseBtn.disabled = true;
 Object.assign(chooseBtn.style, {
@@ -153,8 +153,8 @@ function updateSelectionDisplay(spec) {
   }
   if (selectedNameEl)  selectedNameEl.textContent  = spec.name;
   if (selectedStatsEl) {
-    const energyPJ = (spec.energyJoules / 1e15).toFixed(2);
-    selectedStatsEl.textContent = `Energy ~${energyPJ} PJ · Diameter ~${spec.sizeMeters.toFixed(0)} m`;
+    const energyPJ = (spec.energyJoules).toFixed(2);
+    selectedStatsEl.textContent = `Energy ~${energyPJ} Megaton (one million tons of TNT) · Diameter ~${spec.sizeMeters.toFixed(0)} m`;
   }
 }
 
@@ -292,7 +292,7 @@ const specs = [
     modelScale: 500_000,
     pathColor: Cesium.Color.CYAN,
     meteorProfileId: "a1",
-    energyJoules: 1.2e15,
+    energyJoules: 1.2e+5, 
     sizeMeters: 1012,
   },
   {
@@ -318,7 +318,7 @@ const specs = [
     modelScale: 29_000,
     pathColor: Cesium.Color.ORANGE,
     meteorProfileId: "a3",
-    energyJoules: 2.5e15,
+    energyJoules: 5.3e+0,
     sizeMeters: 58,
   },
   {
@@ -333,7 +333,7 @@ const specs = [
     usePrimitive: true,
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
-    energyJoules: 8.0e14,
+    energyJoules: 1.2e+2,
     sizeMeters: 120,
   },
   {
@@ -348,7 +348,7 @@ const specs = [
     usePrimitive: true,
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
-    energyJoules: 8.0e14,
+    energyJoules: 2.4e+1,
     sizeMeters: 81,
   },
   {
@@ -363,7 +363,7 @@ const specs = [
     usePrimitive: true,
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
-    energyJoules: 8.0e14,
+    energyJoules: 2.4e0,
     sizeMeters: 38,
   },
   {
@@ -378,7 +378,7 @@ const specs = [
     usePrimitive: true,
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
-    energyJoules: 8.0e14,
+    energyJoules: 4.9e-3,
     sizeMeters: 5,
   },
 ];
