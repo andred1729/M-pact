@@ -5,7 +5,14 @@
     <title>Globe Simulator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="./node_modules/cesium/Build/Cesium/Widgets/widgets.css" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bitcount+Single+Ink:wght@100..900&display=swap" rel="stylesheet">
+
     <style>
+
+      
       :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       body { margin: 0; background: #0b1a2a; color: #f1f3f5; overflow: hidden; }
       #cesiumContainer { position: absolute; inset: 0; }
@@ -14,7 +21,7 @@
         background: rgba(6,17,32,.8); border: 1px solid rgba(110,191,244,.35); border-radius: .75rem; padding: 1rem 1.25rem;
         max-width: 20rem; backdrop-filter: blur(6px); box-shadow: 0 12px 35px rgba(0,0,0,.35);
       }
-      .overlay h1 { margin: 0; font-size: 1.25rem; }
+      .overlay h1 { margin: 0; font-size: 1.5rem; color: #cf6de2; font-family: 'Bitcount Single Ink', sans-serif;}
       .overlay p { margin: 0; font-size: .95rem; line-height: 1.45; color: #c8d6e5; }
       .overlay button {
         margin-top: .75rem; padding: .5rem 1.1rem; font-size: .85rem; border: 1px solid rgba(125,211,252,.45); border-radius: 999px;
@@ -45,6 +52,7 @@
     <div class="overlay">
       <h1>Impact Simulator!</h1>
       <p>Follow along as your asteroid strikes Earth. View mitigation strategies and impacts on human life.</p>
+      <p> Click anywhere on the globe to view the impact at your chosen destination.</p>
       <div style="font-size:.85rem; color:#fcd34d; font-weight:500;">Asteroid: <span id="selectedAsteroidLabel">Default profile</span></div>
       <div id="selectedAsteroidStats" style="font-size:.78rem; color:#9ca3af;">Energy ~0.4 PJ · Diameter ~20 m</div>
       <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
