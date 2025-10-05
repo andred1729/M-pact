@@ -245,6 +245,22 @@
           return canvas;
         }
 
+        // NEW: simple crosshair image for the chosen impact point
+        function makeCrossImage(size = 40, color = 'rgba(255,80,80,1)') {
+          const c = document.createElement('canvas');
+          c.width = size; c.height = size;
+          const x = c.getContext('2d');
+          x.strokeStyle = color;
+          x.lineWidth = Math.max(2, size * 0.08);
+          x.lineCap = 'round';
+          const m = size * 0.2;
+          x.beginPath();
+          x.moveTo(m, size/2); x.lineTo(size-m, size/2);
+          x.moveTo(size/2, m); x.lineTo(size/2, size-m);
+          x.stroke();
+          return c;
+        }
+
         // Helper to apply a camera setView using degrees-based config
         function applyCameraFromConfig(cfg) {
           if (!cfg) return;
@@ -284,10 +300,8 @@
         let activeTrail = null;
         let trajectoryEntity = null; // persistent path shown until next run
         let trajectoryPositions = []; // updated in real time to extend the trail
-        
-        function adddot(){
+        let impactCrossEntity = null; // NEW crosshair marker
 
-        }
         function clearEpicenterSpheres() {
           epicenterSpheres.forEach((e) => viewer.entities.remove(e));
           epicenterSpheres = [];
@@ -312,17 +326,55 @@
           });
         }
 
+        // NEW: create/update a crosshair billboard at the chosen point
+        function updateImpactCross() {
+          if (impactCrossEntity) {
+            viewer.entities.remove(impactCrossEntity);
+            impactCrossEntity = null;
+          }
+          impactCrossEntity = viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 0.0),
+            billboard: {
+              image: makeCrossImage(44),
+              verticalOrigin: Cesium.VerticalOrigin.CENTER,
+              horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              scaleByDistance: new Cesium.NearFarScalar(500.0, 1.2, 5000000.0, 0.6)
+            }
+          });
+        }
+
+        // NEW: bake the flown trajectory into a static polyline that persists
+        function bakeFinalTrajectory() {
+          if (trajectoryEntity) {
+            viewer.entities.remove(trajectoryEntity);
+            trajectoryEntity = null;
+          }
+          if (trajectoryPositions.length >= 2) {
+            trajectoryEntity = viewer.entities.add({
+              polyline: {
+                positions: trajectoryPositions.slice(),
+                width: 6,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                  color: Cesium.Color.ORANGE.withAlpha(0.9),
+                  glowPower: 0.15
+                })
+              }
+            });
+          }
+        }
+
         function startMeteorRun() {
           if (!launchButton) { console.error("Simulate button is missing."); return; }
           if (meteorActive) return;
 
-          // Cleanup from prior runs (keep epicenter spheres; they're persistent around the impact site)
+          // Cleanup from prior runs (keep epicenter spheres & crosshair until new pick)
           impactCircleTimers.forEach((id) => window.clearTimeout(id));
           impactCircleTimers = [];
           impactCircleEntities.forEach((e) => viewer.entities.remove(e));
           impactCircleEntities = [];
-          // if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
-          // if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; }
+          if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
+          if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; } // clear previous baked path ONLY when a new sim starts
           trajectoryPositions = [];
 
           launchButton.disabled = true;
@@ -395,7 +447,6 @@
           );
 
           trajectoryPositions = [
-            Cesium.Cartesian3.clone(tailCartesian),
             Cesium.Cartesian3.clone(startCartesian),
           ];
 
@@ -436,6 +487,7 @@
             if (burstTimeoutId !== null) { window.clearTimeout(burstTimeoutId); burstTimeoutId = null; }
             viewer.scene.preRender.removeEventListener(preRenderCallback);
             if (burstPrimitive) { viewer.scene.primitives.remove(burstPrimitive); burstPrimitive = null; }
+            viewer.entities.remove(meteorEntity);
             viewer.clock.shouldAnimate = false;
             meteorActive = false;
             if (pickBtn) pickBtn.disabled = false;
@@ -491,6 +543,9 @@
               if (!finalRecorded || !Cesium.Cartesian3.equalsEpsilon(endCartesian, finalRecorded, Cesium.Math.EPSILON3)) {
                 trajectoryPositions.push(Cesium.Cartesian3.clone(endCartesian));
               }
+
+              // NEW: bake the full flown path into a persistent polyline
+              bakeFinalTrajectory();
 
               const impactCartesian = Cesium.Cartesian3.fromDegrees(METEOR.endLon, METEOR.endLat, 10.0);
               burstPrimitive = new Cesium.ParticleSystem({
@@ -564,8 +619,9 @@
           METEOR.endLat = Cesium.Math.toDegrees(carto.latitude);
           updateImpactDisplay();
 
-          // Create/update small concentric spheres at epicenter
+          // Create/update small concentric spheres at epicenter + crosshair
           createEpicenterSpheres();
+          updateImpactCross(); // NEW
 
           // UI feedback: enable Simulate button and hide center blurb
           if (centerBlurb) { centerBlurb.textContent != null; setTimeout(() => (centerBlurb.style.display = 'none'), 600); }
@@ -578,7 +634,6 @@
         // === End impact picking ===
 
         if (launchButton) launchButton.addEventListener("click", startMeteorRun);
-
       })();
     </script>
   </body>
