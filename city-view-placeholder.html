@@ -79,18 +79,22 @@
       centerLon = -87.6298;
     }
 
-    let radiusMeters = Number(storedContext?.craterRadiusMeters);
-    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+    let craterRadiusMeters = Number(storedContext?.craterRadiusMeters);
+    if (!Number.isFinite(craterRadiusMeters) || craterRadiusMeters <= 0) {
       const estimated = estimateCraterRadius(storedReport);
       if (Number.isFinite(estimated) && estimated > 0) {
-        radiusMeters = estimated;
+        craterRadiusMeters = estimated;
       }
     }
-    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
-      radiusMeters = 1000;
+    if (!Number.isFinite(craterRadiusMeters) || craterRadiusMeters <= 0) {
+      craterRadiusMeters = 1000;
     }
 
-    const cameraHeight = Math.max(radiusMeters * 8, 400);
+    const craterModelScale = Math.max(craterRadiusMeters * 6, 12000);
+    const craterClipRadius = Math.max(Math.min(craterRadiusMeters * 1.8, 60000), craterRadiusMeters + 250);
+    const outerClipRadius = Math.min(craterClipRadius * 4, 200000);
+
+    const cameraHeight = Math.max(craterClipRadius * 4, 400);
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, cameraHeight),
       orientation: {
@@ -133,19 +137,19 @@
       return points;
     }
 
-    const circlePositions = generateCirclePolygon(centerLon, centerLat, radiusMeters);
+    const circlePositions = generateCirclePolygon(centerLon, centerLat, craterClipRadius);
 
     const clippingPolygons = new Cesium.ClippingPolygonCollection({
       polygons: [
-          new Cesium.ClippingPolygon({
-            positions: Cesium.Cartesian3.fromDegreesArray(circlePositions),
+        new Cesium.ClippingPolygon({
+          positions: Cesium.Cartesian3.fromDegreesArray(circlePositions),
         }),
       ],
     });
     const bigClippingPolygons = new Cesium.ClippingPolygonCollection({
       polygons: [
-          new Cesium.ClippingPolygon({
-            positions: Cesium.Cartesian3.fromDegreesArray(generateCirclePolygon(centerLon, centerLat, radiusMeters*5)),
+        new Cesium.ClippingPolygon({
+          positions: Cesium.Cartesian3.fromDegreesArray(generateCirclePolygon(centerLon, centerLat, outerClipRadius)),
         }),
       ],
     });
@@ -153,7 +157,7 @@
     buildingTileset.clippingPolygons = bigClippingPolygons;
     viewer.scene.globe.clippingPolygons = clippingPolygons;
 
-    const craterHeight = Math.max(radiusMeters * 0.1, 130);
+    const craterHeight = Math.max(craterRadiusMeters * 0.12, 150);
     const craterPosition = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, craterHeight);
 
     const craterMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(craterPosition);
@@ -161,7 +165,7 @@
     const craterModel = await Cesium.Model.fromGltfAsync({
       url: 'models/crater_fr 1.glb',  // your crater GLB file
       modelMatrix: craterMatrix,
-      scale: Math.max(radiusMeters, 1)
+      scale: craterModelScale
     });
 
     viewer.scene.primitives.add(craterModel);

@@ -74,7 +74,7 @@
       <div id="selectedAsteroidStats" style="font-size:.78rem; color:#9ca3af;">Energy ~0.4 PJ · Diameter ~20 m</div>
       <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.35rem">
         <button id="launchMeteor" type="button" class="btn-red" disabled>IMPACT!</button>
-        <button id="returnToSelection" type="button" class="small">Choose a New Asteroid</button>
+        <button id="returnToSelection" type="button" class="small">Choose another Asteroid</button>
         <button id="pickImpact" type="button" title="Click on the globe">Pick Impact</button>
         <button id="timeline" type="button" disabled>See Timeline</button>
         <button id="cityView" type="button" disabled>City view</button>
@@ -525,6 +525,7 @@
         })();
 
         const CITY_VIEW_CONTEXT_KEY = 'mpact:cityViewContext';
+        const TIMELINE_CONTEXT_KEY = 'mpact:timelineContext';
 
         const METEOR = {
           startLon: -120.0, startLat: 80.0, startAlt: 900000.0,
@@ -541,6 +542,7 @@
           craterParamsKey: null,
           cityViewContext: null,
           craterRadiusEstimate: null,
+          timelineContext: null,
         };
 
         const STORAGE_KEY = 'mpact:selectedAsteroid';
@@ -899,6 +901,20 @@
           cityViewBtn.title = message || `Inspect impact site (${METEOR.cityViewContext.impactLat.toFixed(2)}°, ${METEOR.cityViewContext.impactLon.toFixed(2)}°)`;
         }
 
+        function markTimelinePending(message = 'Timeline available after the meteor impact completes.') {
+          if (!timelineBtn) return;
+          timelineBtn.disabled = true;
+          timelineBtn.classList.remove('btn-ready');
+          timelineBtn.title = message;
+        }
+
+        function activateTimelineButton(message = 'Review the impact timeline.') {
+          if (!timelineBtn) return;
+          timelineBtn.disabled = false;
+          timelineBtn.classList.add('btn-ready');
+          timelineBtn.title = message;
+        }
+
         function highlightNearbyCity(city, distanceKm) {
           clearCityLabel();
           const labelHeight = Math.max(METEOR.endAlt + 5000, 4000);
@@ -939,6 +955,8 @@
           if (meteorActive) return;
 
           resetCityViewButton('City view unlocks after impact completes.');
+          markTimelinePending('Timeline unlocks after impact completes.');
+          METEOR.timelineContext = null;
           clearCityLabel();
 
           // Cleanup from prior runs (keep epicenter spheres & crosshair until new pick)
@@ -974,9 +992,12 @@
             ? craterRadiusEstimate
             : fallbackRadius;
           METEOR.craterRadiusEstimate = impactRadius;
-          const K = 1000*asteroidProfile.joules ** (1/3);
-          console.log("K:",K);
-          impactRadius = [1.8 * K, 2.5 * K, 3.3 * K, 6.2 * K, 16.1 * K];
+          const energyJoules = Number(asteroidProfile?.joules);
+          const K = Number.isFinite(energyJoules) && energyJoules > 0
+            ? 1000 * Math.cbrt(energyJoules)
+            : Math.max(impactRadius, 500.0);
+          const ringRadii = [1.8, 2.5, 3.3, 6.2, 16.1]
+            .map((multiplier) => Math.max(multiplier * K, 500.0));
 
           meteorActive = true;
           if (pickBtn) pickBtn.disabled = true;
@@ -1086,6 +1107,20 @@
             if (pickBtn) pickBtn.disabled = false;
             launchButton.disabled = false;
             launchButton.classList.add('btn-pulse');
+            const timelineMessage = lastImpactIsWater
+              ? 'Review impact timeline (ocean strike).'
+              : 'Review impact timeline.';
+            METEOR.timelineContext = {
+              impactLat: METEOR.endLat,
+              impactLon: METEOR.endLon,
+              craterRadiusMeters: METEOR.craterRadiusEstimate,
+              asteroidId: METEOR.asteroidId,
+              isWaterImpact: lastImpactIsWater,
+              impactEnergyJoules: ASTEROIDS[METEOR.asteroidId]?.joules ?? null,
+              impactSpeedMultiplier: speedMult,
+              impactAngleDegrees: impactAngleDeg,
+            };
+            activateTimelineButton(timelineMessage);
             // Ensure spheres are present at the epicenter
             createEpicenterSpheres();
             const nearestCity = findNearestMajorCity(METEOR.endLat, METEOR.endLon);
@@ -1168,7 +1203,7 @@
 
               // Expanding 2D shock rings (keep existing visual)
               if (impactCircleEntities.length === 0) {
-                const circleCount = 5, delayMs = 1000;
+                const circleCount = ringRadii.length, delayMs = 1000;
                 const colorsLand = [
                   Cesium.Color.RED,
                   Cesium.Color.DEEPPINK,
@@ -1185,7 +1220,7 @@
                 ];
                 for (let i = 0; i < circleCount; i++) {
                   const timerId = window.setTimeout(() => {
-                    const radius = impactRadius[i];
+                    const radius = ringRadii[i];
                     const baseColor = lastImpactIsWater ? colorsWater[i] : colorsLand[i];
                     console.log("made a circle");
                     const circle = viewer.entities.add({
@@ -1213,6 +1248,7 @@
         // === Impact picking (click anywhere to set endLon/Lat) ===
         const pickBtn = document.getElementById("pickImpact");
         const cityViewBtn = document.getElementById("cityView");
+        const timelineBtn = document.getElementById("timeline");
         const impactDisp = document.getElementById("impactDisplay");
         const centerBlurb = document.getElementById("centerBlurb");
 
@@ -1221,6 +1257,7 @@
         }
         updateImpactDisplay();
         resetCityViewButton();
+        markTimelinePending();
 
         // Start in picking mode immediately
         let pickingImpact = true;
@@ -1235,6 +1272,8 @@
           if (pickingImpact) {
             if (centerBlurb) centerBlurb.style.display = 'block';
             resetCityViewButton();
+            markTimelinePending('Timeline available after selecting land impact.');
+            METEOR.timelineContext = null;
             clearCityLabel();
           }
         });
@@ -1273,6 +1312,8 @@
           METEOR.endLat = lat;
           updateImpactDisplay();
           resetCityViewButton('Evaluating impact location...');
+          markTimelinePending('Timeline available after selecting land impact.');
+          METEOR.timelineContext = null;
 
           // Water/land classification
           await masksReady;
@@ -1355,6 +1396,43 @@
           for (const [key, value] of Object.entries(cityViewPayload)) {
             destination.searchParams.set(key, value);
           }
+          window.location.href = destination.toString();
+        });
+
+        timelineBtn?.addEventListener('click', async () => {
+          if (timelineBtn.disabled) return;
+
+          let context = METEOR.timelineContext;
+          if (!context) {
+            context = {
+              impactLat: METEOR.endLat,
+              impactLon: METEOR.endLon,
+              craterRadiusMeters: METEOR.craterRadiusEstimate,
+              asteroidId: METEOR.asteroidId,
+              isWaterImpact: lastImpactIsWater,
+              impactEnergyJoules: ASTEROIDS[METEOR.asteroidId]?.joules ?? null,
+              impactSpeedMultiplier: speedMult,
+              impactAngleDegrees: impactAngleDeg,
+            };
+          }
+
+          if (!context?.craterRadiusMeters && METEOR.craterReport) {
+            const radius = CRATER_SCRAPER.estimateCraterRadius(METEOR.craterReport);
+            if (Number.isFinite(radius) && radius > 0) context.craterRadiusMeters = radius;
+          }
+
+          try {
+            sessionStorage.setItem(TIMELINE_CONTEXT_KEY, JSON.stringify(context));
+          } catch (err) {
+            console.warn('[timeline] unable to persist context', err);
+          }
+
+          const destination = new URL('./timeline.html', window.location.href);
+          if (Number.isFinite(context?.impactLat)) destination.searchParams.set('impactLat', Number(context.impactLat).toFixed(4));
+          if (Number.isFinite(context?.impactLon)) destination.searchParams.set('impactLon', Number(context.impactLon).toFixed(4));
+          if (Number.isFinite(context?.craterRadiusMeters)) destination.searchParams.set('craterRadiusMeters', Number(context.craterRadiusMeters).toFixed(2));
+          if (context?.asteroidId) destination.searchParams.set('asteroidId', String(context.asteroidId));
+          destination.searchParams.set('isWaterImpact', String(Boolean(context?.isWaterImpact)));
           window.location.href = destination.toString();
         });
       })();

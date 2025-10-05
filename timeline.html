@@ -94,7 +94,8 @@
   </div>
 
   <div class="content">
-    <h1>50 - 100 years before collision</h1>
+    <h1 id="timelineTitle">50 - 100 years before collision</h1>
+    <p id="impactSummary" style="margin-top:0.75rem;"></p>
     <p>With decades of warning time before collision, mitigation measures are mostly preventative. 
         Since these methods generally involve using man-made spacecraft, 
         they require an incredibly long time to plan, develop, and test. Although these strategies haven’t been 
@@ -112,12 +113,66 @@
 <script>
     const strategyButton = document.getElementById("strategy");
     const homeButton = document.getElementById("home");
+    const summaryEl = document.getElementById('impactSummary');
+    const titleEl = document.getElementById('timelineTitle');
 
-    homeButton?.addEventListener('click', () => { window.location.href = '/index.html';  
-});
+    const TIMELINE_CONTEXT_KEY = 'mpact:timelineContext';
 
-    strategyButton?.addEventListener('click', () => { window.location.href = '/strategy.html';  
-});
+    function safeParseJSON(raw) {
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch (err) { console.warn('[timeline] unable to parse stored context', err); return null; }
+    }
+
+    function formatNumber(value, fractionDigits = 2) {
+      if (!Number.isFinite(value)) return null;
+      const formatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: fractionDigits, minimumFractionDigits: fractionDigits });
+      return formatter.format(value);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const storedContext = safeParseJSON(sessionStorage.getItem(TIMELINE_CONTEXT_KEY));
+
+    const context = storedContext || {
+      impactLat: params.has('impactLat') ? Number(params.get('impactLat')) : null,
+      impactLon: params.has('impactLon') ? Number(params.get('impactLon')) : null,
+      craterRadiusMeters: params.has('craterRadiusMeters') ? Number(params.get('craterRadiusMeters')) : null,
+      asteroidId: params.get('asteroidId') || null,
+      isWaterImpact: params.has('isWaterImpact') ? params.get('isWaterImpact') === 'true' : null,
+      impactEnergyJoules: null,
+      impactSpeedMultiplier: null,
+      impactAngleDegrees: null,
+    };
+
+    const latText = formatNumber(context?.impactLat, 2);
+    const lonText = formatNumber(context?.impactLon, 2);
+    const craterKm = formatNumber((context?.craterRadiusMeters || 0) / 1000, 2);
+    const craterMiles = formatNumber((context?.craterRadiusMeters || 0) / 1609.344, 2);
+    const angleText = formatNumber(context?.impactAngleDegrees, 0);
+    const speedText = context?.impactSpeedMultiplier
+      ? `${formatNumber((context.impactSpeedMultiplier || 0) * 32000, 0)} mph`
+      : null;
+
+    if (titleEl) {
+      const impactType = context?.isWaterImpact === true ? 'Ocean Impact Timeline' : 'Impact Timeline';
+      titleEl.textContent = impactType;
+    }
+
+    if (summaryEl) {
+      const parts = [];
+      if (latText && lonText) parts.push(`Impact site: ${latText}°, ${lonText}°`);
+      if (context?.asteroidId) parts.push(`Asteroid profile: ${context.asteroidId}`);
+      if (angleText) parts.push(`Entry angle: ${angleText}°`);
+      if (speedText) parts.push(`Speed: ${speedText}`);
+      if (Number.isFinite(context?.craterRadiusMeters)) {
+        parts.push(`Estimated crater radius: ${formatNumber(context.craterRadiusMeters, 0)} m`);
+        if (craterKm) parts.push(`(~${craterKm} km)`);
+      }
+      summaryEl.textContent = parts.length ? parts.join(' · ') : 'Impact context unavailable. Select an impact site in the simulator to populate these details.';
+    }
+
+    homeButton?.addEventListener('click', () => { window.location.href = '/index.html'; });
+
+    strategyButton?.addEventListener('click', () => { window.location.href = '/strategy.html'; });
 
 </script>
 </body>
