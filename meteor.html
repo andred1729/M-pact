@@ -31,6 +31,21 @@
       .overlay button:hover:enabled { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(33,150,243,.4); }
       .overlay button:disabled { opacity: .6; cursor: default; box-shadow: none; }
       .overlay button.small{ padding:.35rem .75rem; font-size:.8rem; }
+      #cityView {
+        background: linear-gradient(120deg,#4b5563,#1f2937);
+        border-color: rgba(148,163,184,.45);
+        box-shadow: none;
+        color: #e5e7eb;
+      }
+      #cityView.btn-ready {
+        background: linear-gradient(120deg,#1d8cf8,#935ade);
+        border-color: rgba(125,211,252,.45);
+        color: #fff;
+        box-shadow: 0 8px 22px rgba(33,150,243,.35);
+      }
+      #cityView.btn-ready:hover:enabled {
+        box-shadow: 0 12px 28px rgba(33,150,243,.4);
+      }
 
       /* Center blurb */
       .center-blurb { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 12;
@@ -62,6 +77,7 @@
         <button id="returnToSelection" type="button" class="small">Choose a New Asteroid</button>
         <button id="pickImpact" type="button" title="Click on the globe">Pick Impact</button>
         <button id="timeline" type="button" class="btn-red" disabled>See Timeline</button>
+        <button id="cityView" type="button" disabled>City view</button>
       </div>
       <div style="display:flex; align-items:center; gap:.5rem; font-size:.85rem; margin-top:.35rem">
         <strong style="font-weight:600">Impact:</strong>
@@ -97,7 +113,6 @@
     <script>
       window.CESIUM_BASE_URL = "./node_modules/cesium/Build/Cesium/";
       window.CESIUM_ION_TOKEN = "__CESIUM_ION_TOKEN__";
-
     </script>
     <script src="./node_modules/cesium/Build/Cesium/Cesium.js"></script>
     <!-- Turf & TopoJSON from CDNs (pinned versions) -->
@@ -116,7 +131,17 @@
             ? window.CESIUM_ION_TOKEN : null;
         if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
 
-        const viewerOptions = { infoBox: false };
+        const viewerOptions = {
+          infoBox: false,
+          animation: false,
+          timeline: false,
+          geocoder: false,
+          homeButton: false,
+          navigationHelpButton: false,
+          baseLayerPicker: false,
+          fullscreenButton: false,
+          selectionIndicator: false,
+        };
         if (!ionToken) {
           viewerOptions.imageryProvider = new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" });
           viewerOptions.terrainProvider = new Cesium.EllipsoidTerrainProvider();
@@ -159,6 +184,21 @@
           a3: { joules: 2.5e15, sizeMeters: 80 },
           a4: { joules: 8.0e14, sizeMeters: 35 },
         };
+        const MAJOR_CITIES = [
+          { name: "New York City", lat: 40.7128, lon: -74.0060 },
+          { name: "Los Angeles", lat: 34.0522, lon: -118.2437 },
+          { name: "Chicago", lat: 41.8781, lon: -87.6298 },
+          { name: "London", lat: 51.5074, lon: -0.1278 },
+          { name: "Paris", lat: 48.8566, lon: 2.3522 },
+          { name: "Madrid", lat: 40.4168, lon: -3.7038 },
+          { name: "Tokyo", lat: 35.6762, lon: 139.6503 },
+          { name: "Mexico City", lat: 19.4326, lon: -99.1332 },
+          { name: "Sao Paulo", lat: -23.5505, lon: -46.6333 },
+          { name: "Sydney", lat: -33.8688, lon: 151.2093 },
+          { name: "Cairo", lat: 30.0444, lon: 31.2357 },
+          { name: "Johannesburg", lat: -26.2041, lon: 28.0473 },
+        ];
+        const CITY_PROXIMITY_THRESHOLD_KM = 75;
         const JOULE_RADIUS_SCALE = 1e-9;
 
         const METEOR = {
@@ -201,7 +241,7 @@
           if (statsEl) {
             const energyPJ = storedSelection.energyJoules ? (storedSelection.energyJoules).toFixed(2) : '0.40';
             const size = storedSelection.sizeMeters ? storedSelection.sizeMeters.toFixed(0) : '20';
-            statsEl.textContent = `Energy ~${energyPJ} Megatons of TNT· Diameter ~${size} m`;
+            statsEl.textContent = `Energy ~${energyPJ} Megatons · Diameter ~${size} m`;
           }
         } else {
           const labelEl = document.getElementById('selectedAsteroidLabel');
@@ -398,6 +438,8 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
         let trajectoryEntity = null; // persistent path shown until next run
         let trajectoryPositions = []; // updated in real time to extend the trail
         let impactCrossEntity = null; // NEW crosshair marker
+        let cityLabelEntity = null;
+        let cityViewPayload = null;
 
         function clearEpicenterSpheres() {
           epicenterSpheres.forEach((e) => viewer.entities.remove(e));
@@ -461,9 +503,68 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           }
         }
 
+        function clearCityLabel() {
+          if (!cityLabelEntity) return;
+          viewer.entities.remove(cityLabelEntity);
+          cityLabelEntity = null;
+        }
+
+        function resetCityViewButton(reason = 'City view available after meteor landing near a major city.') {
+          if (!cityViewBtn) return;
+          cityViewPayload = null;
+          cityViewBtn.disabled = true;
+          cityViewBtn.classList.remove('btn-ready');
+          cityViewBtn.title = reason;
+        }
+
+        function enableCityViewButton(payload, nearbyCity) {
+          cityViewPayload = payload;
+          if (!cityViewBtn) return;
+          cityViewBtn.disabled = false;
+          cityViewBtn.classList.add('btn-ready');
+          cityViewBtn.title = `Inspect ${nearbyCity.name} (${payload.distanceKm} km from impact)`;
+        }
+
+        function highlightNearbyCity(city, distanceKm) {
+          clearCityLabel();
+          cityLabelEntity = viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(city.lon, city.lat, 0.0),
+            label: {
+              text: `${city.name} (${distanceKm.toFixed(1)} km)`,
+              font: '16px "Segoe UI", sans-serif',
+              fillColor: Cesium.Color.WHITE,
+              outlineColor: Cesium.Color.BLACK,
+              outlineWidth: 2,
+              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+              pixelOffset: new Cesium.Cartesian2(0, -12),
+              translucencyByDistance: new Cesium.NearFarScalar(500.0, 1.0, 2500000.0, 0.2),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+          });
+        }
+
+        function findNearestMajorCity(lat, lon) {
+          const impactCarto = Cesium.Cartographic.fromDegrees(lon, lat);
+          let nearest = null;
+          for (const city of MAJOR_CITIES) {
+            const cityCarto = Cesium.Cartographic.fromDegrees(city.lon, city.lat);
+            const geodesic = new Cesium.EllipsoidGeodesic(impactCarto, cityCarto);
+            const distanceKm = (geodesic.surfaceDistance || 0) / 1000;
+            if (!Number.isFinite(distanceKm)) continue;
+            if (!nearest || distanceKm < nearest.distanceKm) {
+              nearest = { city, distanceKm };
+            }
+          }
+          return nearest;
+        }
+
         function startMeteorRun() {
           if (!launchButton) { console.error("Simulate button is missing."); return; }
           if (meteorActive) return;
+
+          resetCityViewButton();
+          clearCityLabel();
 
           // Cleanup from prior runs (keep epicenter spheres & crosshair until new pick)
           impactCircleTimers.forEach((id) => window.clearTimeout(id));
@@ -594,6 +695,21 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
             timelineButton.disabled = false;
             // Ensure spheres are present at the epicenter
             createEpicenterSpheres();
+            const nearestCity = findNearestMajorCity(METEOR.endLat, METEOR.endLon);
+            if (nearestCity && nearestCity.distanceKm <= CITY_PROXIMITY_THRESHOLD_KM) {
+              highlightNearbyCity(nearestCity.city, nearestCity.distanceKm);
+              enableCityViewButton({
+                city: nearestCity.city.name,
+                cityLat: nearestCity.city.lat.toFixed(4),
+                cityLon: nearestCity.city.lon.toFixed(4),
+                impactLat: METEOR.endLat.toFixed(4),
+                impactLon: METEOR.endLon.toFixed(4),
+                distanceKm: nearestCity.distanceKm.toFixed(1),
+              }, nearestCity.city);
+            } else {
+              clearCityLabel();
+              resetCityViewButton(`No major city within ${CITY_PROXIMITY_THRESHOLD_KM} km of impact.`);
+            }
           };
 
           const rotationScratch = new Cesium.Matrix3();
@@ -688,6 +804,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
 
         // === Impact picking (click anywhere to set endLon/Lat) ===
         const pickBtn = document.getElementById("pickImpact");
+        const cityViewBtn = document.getElementById("cityView");
         const impactDisp = document.getElementById("impactDisplay");
         const centerBlurb = document.getElementById("centerBlurb");
 
@@ -695,6 +812,7 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           if (impactDisp) impactDisp.textContent = `${METEOR.endLat.toFixed(4)}°, ${METEOR.endLon.toFixed(4)}°`;
         }
         updateImpactDisplay();
+        resetCityViewButton();
 
         // Start in picking mode immediately
         let pickingImpact = true;
@@ -706,7 +824,11 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
           pickingImpact = !pickingImpact;
           pickBtn.textContent = pickingImpact ? "Click on globe…" : "Pick Impact";
           viewer.canvas.style.cursor = pickingImpact ? "crosshair" : "";
-          if (pickingImpact && centerBlurb) centerBlurb.style.display = 'block';
+          if (pickingImpact) {
+            if (centerBlurb) centerBlurb.style.display = 'block';
+            resetCityViewButton();
+            clearCityLabel();
+          }
         });
 
         // === Impact picking (click anywhere to set endLon/Lat) ===
@@ -750,6 +872,8 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
 
           createEpicenterSpheres();
           updateImpactCross(crossColor);
+          clearCityLabel();
+          resetCityViewButton();
 
           if (centerBlurb) setTimeout(() => (centerBlurb.style.display = 'none'), 600);
           if (launchButton) { launchButton.disabled = false; launchButton.classList.add('btn-pulse'); }
@@ -762,6 +886,14 @@ timelineButton?.addEventListener('click', () => { window.location.href = '/timel
         // === End impact picking ===
 
         if (launchButton) launchButton.addEventListener("click", startMeteorRun);
+        cityViewBtn?.addEventListener("click", () => {
+          if (!cityViewPayload) return;
+          const destination = new URL('./city-view-placeholder.html', window.location.href);
+          for (const [key, value] of Object.entries(cityViewPayload)) {
+            destination.searchParams.set(key, value);
+          }
+          window.location.href = destination.toString();
+        });
       })();
 
     </script>
