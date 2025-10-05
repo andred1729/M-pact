@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Include the CesiumJS JavaScript and CSS files -->
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.134/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.134/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <style>
+    /* Make the page and container fill the viewport */
+    html, body, #cesiumContainer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* avoid scrollbars */
+    }
+    /* Optional: ensure Cesium canvas stretches while resizing */
+    #cesiumContainer {
+      display: block;
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+  <script type="module">
+    // Your access token can be found at: https://ion.cesium.com/tokens.
+    // This is the default access token from your ion account
+
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmZDQyZTk5Mi04ZjA1LTQ2OGMtYjkwZS1jNjk4ODU4OTBhMTEiLCJpZCI6MzQ3MTc4LCJpYXQiOjE3NTk1OTE3Njh9.AhvjmY5HsenQmIW6-PV_isFhNEUMunbEtvmhR9yNRyI';
+
+    // Initialize the Cesium Viewer in the HTML element with the `cesiumContainer` ID.
+    const viewer = new Cesium.Viewer("cesiumContainer", {
+      terrain: Cesium.Terrain.fromWorldTerrain({
+        requestVertexNormals: true,
+      }),
+    });
+    viewer.scene.globe.enableLighting = true;
+
+    const centerLon = -87.6298;
+    const centerLat = 41.8781;
+    const radiusMeters = 1000;
+
+    // Fly the camera to Chicago at the given longitude, latitude, and height.
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 400),
+      orientation: {
+        heading: Cesium.Math.toRadians(0.0),
+        pitch: Cesium.Math.toRadians(-15.0),
+      }
+    });
+
+
+    // Add Cesium OSM Buildings, a global 3D buildings layer.
+    const buildingTileset = await Cesium.createOsmBuildingsAsync();
+    viewer.scene.primitives.add(buildingTileset);  
+    
+    // Set the optimal lighting for the area of interest
+    viewer.scene.skyAtmosphere.show = true;
+    const currentTime = Cesium.JulianDate.fromIso8601(
+      "2020-01-09T23:00:39.018261982600961346Z"
+    );
+    viewer.clock.currentTime = currentTime;
+
+    // Add Photorealistic 3D Tiles
+    let globalTileset;
+    try {
+      globalTileset = await Cesium.Cesium3DTileset();
+      viewer.scene.primitives.add(globalTileset);
+    } catch (error) {
+      console.log(`Error loading Photorealistic 3D Tiles tileset. ${error}`);
+    }
+
+    function generateCirclePolygon(lon, lat, r, pts = 500){
+      let points = [];
+      const mpd = 111139; // meters per degree
+      for (let i = 0; i < pts; i++) {
+        const deg = ((i / pts) * 2 * Math.PI);
+        const x_m = r * Math.cos(deg);
+        const y_m = r * Math.sin(deg);
+        console.log(deg);
+        points.push((x_m / mpd) + lon);
+        points.push((y_m / mpd) + lat);
+      }
+      return points;
+    }
+
+    const circlePositions = generateCirclePolygon(centerLon, centerLat, radiusMeters); 
+    console.log(circlePositions)
+
+    const clippingPolygons = new Cesium.ClippingPolygonCollection({
+      polygons: [
+          new Cesium.ClippingPolygon({
+            positions: Cesium.Cartesian3.fromDegreesArray(circlePositions),
+        }),
+      ],
+    });
+    const bigClippingPolygons = new Cesium.ClippingPolygonCollection({
+      polygons: [
+          new Cesium.ClippingPolygon({
+            positions: Cesium.Cartesian3.fromDegreesArray(generateCirclePolygon(centerLon, centerLat, radiusMeters*5)),
+        }),
+      ],
+    });
+
+    buildingTileset.clippingPolygons = bigClippingPolygons;
+    viewer.scene.globe.clippingPolygons = clippingPolygons;
+
+    const craterPosition = Cesium.Cartesian3.fromDegrees(-87.6298, 41.8781, 130); // example: Chicago
+
+    const craterMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(craterPosition);
+
+    const craterModel = await Cesium.Model.fromGltfAsync({
+      url: 'models/crater_fr 1.glb',  // your crater GLB file
+      modelMatrix: craterMatrix,
+      scale: 1000   // match your crater size (e.g. 1 = 1 km if model was built that way)
+    });
+
+    viewer.scene.primitives.add(craterModel);
+
+    
+
+  </script>
+ </div>
+</body>
+</html>
