@@ -19,31 +19,7 @@ const viewer = new Cesium.Viewer('cesiumContainer', {
   infoBox: true,
   terrain: Cesium.Terrain.fromWorldTerrain({ requestWaterMask: true }),
 });
-viewer.infoBox.frame.addEventListener("load", () => {
-  const doc = viewer.infoBox.frame.contentDocument;
-  if (!doc) return;
 
-  const style = doc.createElement("style");
-  style.textContent = `
-    :root { color-scheme: light dark; }
-    html, body {
-      margin: 0;
-      padding: 8px;
-      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: #ffffff;
-      color: #111111;
-    }
-    h3 { margin: 0 0 .5em; font-size: 16px; color: inherit; }
-    a { color: #0b5cff; }
-    code, pre { background: rgba(0,0,0,.06); padding: .1em .3em; border-radius: 4px; }
-    @media (prefers-color-scheme: dark) {
-      html, body { background: #0b0f14; color: #eaf1ff; }
-      a { color: #8fc7ff; }
-      code, pre { background: rgba(255,255,255,.08); }
-    }
-  `;
-  doc.head.appendChild(style);
-});
 const STORAGE_KEY = 'mpact:selectedAsteroid';
 const selectedNameEl = document.getElementById('selectedAsteroidName');
 
@@ -163,17 +139,17 @@ function addAsteroid({
       leadTime: 0,
       trailTime
     }),
-    description: "Hello"
-    // description: new Cesium.CallbackProperty((time) => {
-    //   const p = position.getValue(time);
-    //   if (!p) return name;
-    //   const c = Cesium.Cartographic.fromCartesian(p);
-    //   return `<h3>${name}</h3>
-    //           Lat/Lon: ${Cesium.Math.toDegrees(c.latitude).toFixed(2)}°, ${Cesium.Math.toDegrees(c.longitude).toFixed(2)}°<br>
-    //           Alt: ${(c.height/1000).toFixed(0)} km<br>
-    //           Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
-    //           Diameter: ${sizeMeters.toFixed(0)} m`;
-    // }, false)
+
+    description: new Cesium.CallbackProperty((time) => {
+      const p = position.getValue(time);
+      if (!p) return name;
+      const c = Cesium.Cartographic.fromCartesian(p);
+      return `<h3>${name}</h3>
+              Lat/Lon: ${Cesium.Math.toDegrees(c.latitude).toFixed(2)}°, ${Cesium.Math.toDegrees(c.longitude).toFixed(2)}°<br>
+              Alt: ${(c.height/1000).toFixed(0)} km<br>
+              Energy: ${(energyJoules / 1e15).toFixed(2)} PJ<br>
+              Diameter: ${sizeMeters.toFixed(0)} m`;
+    }, false)
   });
 
   e.mpactData = {
@@ -223,8 +199,8 @@ function addAsteroid({
 }
 const specs = [
   {
-    id: "a1",
-    name: "Ast-Polar",
+    id: "2010 ER12",
+    name: "2010 ER12",
     altitude: 25_000_000,
     incDeg: 90,
     RAANDeg: 0,
@@ -233,48 +209,93 @@ const specs = [
     pathColor: Cesium.Color.CYAN,
     meteorProfileId: "a1",
     energyJoules: 1.2e15,
-    sizeMeters: 45,
+    sizeMeters: 1012,
   },
   {
-    id: "a2",
-    name: "Ast-30°",
+    id: "2014 HN197",
+    name: "2014 HN197",
     altitude: 25_000_000,
-    incDeg: 30,
+    incDeg: 130,
     RAANDeg: 60,
     phaseDeg: 45,
-    modelScale: 700_000,
+    modelScale: 175_000,
     pathColor: Cesium.Color.YELLOW,
     meteorProfileId: "a2",
     energyJoules: 6.0e14,
-    sizeMeters: 30,
+    sizeMeters: 350,
   },
   {
-    id: "a3",
-    name: "Ast-63°",
-    altitude: 25_000_000,
+    id: "2023 TB2",
+    name: "2023 TB2",
+    altitude: 60_000_000,
     incDeg: 63.4,
-    RAANDeg: 120,
+    RAANDeg: -120,
     phaseDeg: 180,
-    modelScale: 900_000,
+    modelScale: 29_000,
     pathColor: Cesium.Color.ORANGE,
     meteorProfileId: "a3",
     energyJoules: 2.5e15,
-    sizeMeters: 80,
+    sizeMeters: 58,
   },
   {
-    id: "a4",
-    name: "Ast-Silhouette",
-    altitude: 25_000_000,
-    incDeg: 51.6,
+    id: "2022 VF1",
+    name: "2022 VF1",
+    altitude: 50_000_000,
+    incDeg: 251.6,
     RAANDeg: -90,
     phaseDeg: 270,
-    modelScale: 600_000,
+    modelScale: 60_000,
     pathColor: Cesium.Color.LIME,
     usePrimitive: true,
     silhouette: { color: Cesium.Color.LIME, size: 4 },
     meteorProfileId: "a4",
     energyJoules: 8.0e14,
-    sizeMeters: 35,
+    sizeMeters: 120,
+  },
+  {
+    id: "2000 WJ107",
+    name: "2000 WJ107",
+    altitude: 30_000_000,
+    incDeg: 80,
+    RAANDeg: -180,
+    phaseDeg: 100,
+    modelScale: 40_500,
+    pathColor: Cesium.Color.ORANGE,
+    usePrimitive: true,
+    silhouette: { color: Cesium.Color.LIME, size: 4 },
+    meteorProfileId: "a4",
+    energyJoules: 8.0e14,
+    sizeMeters: 81,
+  },
+  {
+    id: "2025 RM1",
+    name: "2025 RM1",
+    altitude: 47_000_000,
+    incDeg: 205,
+    RAANDeg: 220,
+    phaseDeg: 170,
+    modelScale: 19_000,
+    pathColor: Cesium.Color.BLUE,
+    usePrimitive: true,
+    silhouette: { color: Cesium.Color.LIME, size: 4 },
+    meteorProfileId: "a4",
+    energyJoules: 8.0e14,
+    sizeMeters: 38,
+  },
+  {
+    id: "2024 RS16",
+    name: "2024 RS16",
+    altitude: 47_000_000,
+    incDeg: 10,
+    RAANDeg: 270,
+    phaseDeg: -25,
+    modelScale: 2500,
+    pathColor: Cesium.Color.YELLOW,
+    usePrimitive: true,
+    silhouette: { color: Cesium.Color.LIME, size: 4 },
+    meteorProfileId: "a4",
+    energyJoules: 8.0e14,
+    sizeMeters: 5,
   },
 ];
 
@@ -352,46 +373,6 @@ function setSelection(entity) {
 
 viewer.selectedEntityChanged.addEventListener(setSelection);
 setSelection(viewer.selectedEntity || null);
-
-// make the outer iframe itself transparent (so the chrome shows through)
-viewer.infoBox.frame.style.background = 'transparent';
-
-// function to inject CSS into the infoBox iframe
-function restyleInfoBoxFrame() {
-  const doc = viewer.infoBox.frame?.contentDocument;
-  if (!doc) return;
-  // avoid duplicating
-  if (doc.getElementById('injected-dark-infobox')) return;
-
-  const style = doc.createElement('style');
-  style.id = 'injected-dark-infobox';
-  style.textContent = `
-    html, body {
-      background: transparent !important;   /* or a dark color if you prefer */
-      color: #e6e6e6 !important;
-    }
-    .cesium-infoBox-description {
-      background: transparent !important;
-      color: inherit !important;
-    }
-    a { color: #8bd3ff !important; }
-    table, th, td { background: transparent !important; color: inherit !important; }
-  `;
-  doc.head.appendChild(style);
-
-  // belt & suspenders:
-  doc.body.style.background = 'transparent';
-}
-
-// inject once when the iframe initially loads
-viewer.infoBox.frame.addEventListener('load', restyleInfoBoxFrame);
-
-// re-inject whenever the selected entity changes (some content updates can refresh the iframe)
-viewer.selectedEntityChanged.addEventListener(() => {
-  // give Cesium a tick to update the iframe document
-  setTimeout(restyleInfoBoxFrame, 0);
-});
-
 
 btn.addEventListener('click', () => {
   if (!currentSelection) {
