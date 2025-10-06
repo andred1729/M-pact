@@ -1,4 +1,4 @@
-# MPACT Asteroid Demo
+# MPACT Asteroid Demo for NASA Space Apps 2025 Chicago
 
 This repo now hosts both stages of the experience behind a single Node server:
 
