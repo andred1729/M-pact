@@ -1,13 +1,13 @@
 // === main.js (models visible + InfoBox body + overlay label + working nav) ===
 
 // --- Cesium setup (minimal UI) ---
-const ionToken = (window.CESIUM_ION_TOKEN || "").trim();
+const rawToken = typeof window.CESIUM_ION_TOKEN === "string" ? window.CESIUM_ION_TOKEN.trim() : "";
+const ionToken = rawToken && rawToken !== "__CESIUM_ION_TOKEN__" ? rawToken : null;
 if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
 if (window.CESIUM_BASE_URL) Cesium.buildModuleUrl.setBaseUrl(window.CESIUM_BASE_URL);
 
-const viewer = new Cesium.Viewer("cesiumContainer", {
+const viewerOptions = {
   infoBox: true,
-  terrain: Cesium.Terrain.fromWorldTerrain({ requestWaterMask: true }),
   animation: false,
   baseLayerPicker: false,
   fullscreenButton: false,
@@ -18,7 +18,30 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   selectionIndicator: true,
   timeline: false,
   vrButton: false,
-});
+};
+
+if (!ionToken) {
+  viewerOptions.imageryProvider = new Cesium.TileMapServiceImageryProvider({
+    url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+  });
+}
+
+const viewer = new Cesium.Viewer("cesiumContainer", viewerOptions);
+
+if (ionToken) {
+  viewer.terrainProvider = Cesium.Terrain.fromWorldTerrain({ requestWaterMask: true });
+} else {
+  viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+  viewer.imageryLayers.removeAll();
+  viewer.imageryLayers.addImageryProvider(new Cesium.WebMapServiceImageryProvider({
+    url: 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
+    layers: 'BlueMarble_ShadedRelief_Bathymetry',
+    tileMatrixSetID: 'EPSG4326_500m',
+    format: 'image/png',
+    maximumLevel: 5,
+    credit: 'NASA Blue Marble'
+  }));
+}
 
 viewer.clock.shouldAnimate = true;
 
