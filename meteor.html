@@ -186,6 +186,124 @@
     <!-- Turf & TopoJSON from CDNs (pinned versions) -->
     <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
     <script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+   
+    <!-- ADD THIS small script here (near the bottom, not the top) -->
+    <script>
+      window.addEventListener('error', e => {
+        const el = document.createElement('div');
+        el.style = 'position:fixed;bottom:10px;left:10px;background:#111;color:#fff;padding:8px 10px;border:1px solid #f33;z-index:99999;font:12px system-ui';
+        el.textContent = 'JS error: ' + e.message;
+        document.body.appendChild(el);
+      });
+    </script>
+    <script>
+    /** ---- Coastline Highlighter (TopoJSON + Turf + Cesium) ------------------ */
+    (function(){
+      const COAST_GLOW_RADIUS_M = 0;      // 0 disables it
+      const COAST_GLOW_WIDTH_PX  = 0;
+      const COAST_GLOW_COLOR     = Cesium.Color.fromCssColorString('#40a0ff');
+      const RESOLUTION = "110m"; // use "50m" for crisper coastlines (heavier)
+      let coastlineFC = null;    // GeoJSON FeatureCollection (lines)
+      let coastDS = null;        // Cesium GeoJsonDataSource
+      let coastCircleEntity = null;
+
+      async function loadCoastline() {
+        if (coastlineFC) return coastlineFC;
+        const url = `https://unpkg.com/world-atlas@2.0.2/land-${RESOLUTION}.json`;
+        const topo = await fetch(url).then(r => r.json());
+        const meshGeom = topojson.mesh(topo, topo.objects.land, (a,b)=>a===b); // exterior arcs -> coastline
+        coastlineFC = { type:"FeatureCollection", features:[{ type:"Feature", properties:{}, geometry: meshGeom }] };
+        return coastlineFC;
+      }
+
+      function linesWithinRadius(linesFC, centerLonLat, radiusMeters) {
+        const circle = turf.circle(centerLonLat, radiusMeters / 1000, { steps: 256, units: "kilometers" });
+        const kept = [];
+
+        // normalize to LineStrings
+        const lines = [];
+        for (const f of linesFC.features) {
+          const g = f.geometry;
+          if (!g) continue;
+          if (g.type === "LineString") lines.push(f);
+          else if (g.type === "MultiLineString") {
+            for (const c of g.coordinates) lines.push(turf.lineString(c, f.properties || {}));
+          }
+        }
+
+        // optional quick reject by bbox to save work
+        const circleBboxPoly = turf.bboxPolygon(turf.bbox(circle));
+
+        for (const line of lines) {
+          // Skip lines whose bbox doesn't touch the circle bbox
+          if (turf.booleanDisjoint(turf.bboxPolygon(turf.bbox(line)), circleBboxPoly)) continue;
+
+          // Break long coastlines into short chunks (e.g. ~40 km)
+          const chunks = turf.lineChunk(line, 40, { units: "kilometers" });
+          for (const seg of chunks.features) {
+            const coords = seg.geometry.coordinates;
+            if (coords.length < 2) continue;
+            const mid = turf.midpoint(turf.point(coords[0]), turf.point(coords[coords.length - 1]));
+            if (turf.booleanPointInPolygon(mid, circle)) kept.push(seg);
+          }
+        }
+
+        return turf.featureCollection(kept);
+      }
+
+
+      async function drawGlowInCesium(viewer, centerLonLat, radiusMeters, color = Cesium.Color.YELLOW) {
+        const lines = await loadCoastline();
+        const clipped = linesWithinRadius(lines, centerLonLat, radiusMeters);
+
+        // clear old
+        if (coastDS) { viewer.dataSources.remove(coastDS); coastDS = null; }
+        if (coastCircleEntity) { viewer.entities.remove(coastCircleEntity); coastCircleEntity = null; }
+
+        if (!clipped.features.length) return null;
+
+        coastDS = await Cesium.GeoJsonDataSource.load(clipped, {
+          clampToGround: true,
+          stroke: color,
+          strokeWidth: 3
+        });
+        coastDS.entities.values.forEach(e => {
+          if (e.polyline) {
+            e.polyline.material = new Cesium.PolylineGlowMaterialProperty({
+              glowPower: 0.25,
+              taperPower: 1.0,
+              color: color.withAlpha(0.95)
+            });
+            e.polyline.width = 10;
+          }
+        });
+        viewer.dataSources.add(coastDS);
+
+        // optional footprint
+        const circleOutline = turf.circle(centerLonLat, radiusMeters/1000, {steps: 192, units: "kilometers"});
+        const flatDegrees = circleOutline.geometry.coordinates[0].flatMap(([lon,lat]) => [lon,lat]);
+        coastCircleEntity = viewer.entities.add({
+          polygon: {
+            hierarchy: Cesium.Cartesian3.fromDegreesArray(flatDegrees),
+            material: color.withAlpha(0.08),
+            outline: true,
+            outlineColor: color.withAlpha(0.5),
+            classificationType: Cesium.ClassificationType.TERRAIN
+          }
+        });
+
+        return { dataSource: coastDS, circle: coastCircleEntity };
+      }
+
+      window.__CoastGlow__ = {
+        drawGlowInCesium,
+        clear(viewer){
+          if (coastDS) { viewer.dataSources.remove(coastDS); coastDS = null; }
+          if (coastCircleEntity) { viewer.entities.remove(coastCircleEntity); coastCircleEntity = null; }
+        }
+      };
+    })();
+    </script>
 
     <script>
       (function () {
@@ -652,6 +770,9 @@
           const statsEl = document.getElementById('selectedAsteroidStats');
           if (statsEl) statsEl.textContent = 'Energy ~0.4 Megatons · Diameter ~20 m';
         }
+        const COAST_GLOW_RADIUS_M = 2_000_000;   // meters (use 1_300_000 if you meant 1300 km)
+        let impactRadiusMeters = COAST_GLOW_RADIUS_M;
+        recomputeImpactRadiusForCurrentMeteor();
         const targetCity = CITIES[METEOR.targetCity];
         METEOR.endLon = targetCity ? targetCity.lon : -90.0;
         METEOR.endLat = targetCity ? targetCity.lat : 33.0;
@@ -747,7 +868,8 @@
           if (_blurb.el) _blurb.el.classList.add('hidden');
         }
 
-        window.composeBlurb ||= null;
+        if (typeof window.composeBlurb === 'undefined') window.composeBlurb = null;
+
 
         function showImpactBlurb() {
           _initBlurbRefs();
@@ -801,218 +923,206 @@
         const BLURB_BY_METEOR = {
           "2010 ER12": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although some of the asteroid’s material will be burned away as it falls through 
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although some of the asteroid’s material will be burned away as it falls through 
                 Earth’s atmosphere, its impact will be unbelievably catastrophic. It will release energy 
                 equivalent to 120,000 megatons of TNT, or 8 million Hiroshima nuclear bombs, and will release 
                 seismic waves equivalent to an 8-9 magnitude earthquake—felt up to thousands of kilometers away. 
-                It will devastate entire countries, and cause environmental and climate effects across the globe.</li>
-                <li>Although you can try to warn people ahead of time, evacuating multiple countries is not easy. 
-                You are screwed.</li>
-              </ul>
+                It will devastate entire countries, and cause environmental and climate effects across the globe.</p>
+                <p>Although you can try to warn people ahead of time, evacuating multiple countries is not easy. 
+                You are screwed.</p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although some of the asteroid’s material will be burned away as it falls through Earth’s atmosphere, 
-                  its impact will be unbelievably catastrophic, releasing energy equivalent to 120,000 megatons of TNT, or 
-                  8 million Hiroshima nuclear bombs. It lands in water, which will reduce the seismic effects significantly, 
-                  but this will not save you. The impact and huge crater will cause mega-tsunamis to continuously ripple 
-                  in all directions, hitting coastlines over 1000 km away. Water will vaporize, dropping local temperatures 
-                  and causing a global greenhouse gas effect. Human society as we know it will likely collapse.</li>
-                <li>You are screwed. </li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Water?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although some of the asteroid’s material will be burned away as it falls through Earth’s atmosphere, 
+                its impact will be unbelievably catastrophic, releasing energy equivalent to 120,000 megatons of TNT, or 
+                8 million Hiroshima nuclear bombs. It lands in water, which will reduce the seismic effects significantly, 
+                but this will not save you. The impact and huge crater will cause mega-tsunamis to continuously ripple 
+                in all directions, hitting coastlines over 1000 km away. Water will vaporize, dropping local temperatures 
+                and causing a global greenhouse gas effect. Human society as we know it will likely collapse.</li>
+              <p>You are screwed. </p>
             `,
           },
           "2014 HN197": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although some of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big. It will release energy equivalent to 3300 
-                  megatons of TNT, or 287,000 Hiroshima nuclear bombs, and will release seismic waves 
-                  equivalent to a 7-8 magnitude earthquake. It will cause continent-wide damage, and the 
-                  resulting fires and temperature fluctuations will be devastating. </li>
-                <li>Although you can try to warn people ahead of time, evacuating an entire country is 
-                  not easy. You are screwed. </li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although some of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big. It will release energy equivalent to 3300 
+                megatons of TNT, or 287,000 Hiroshima nuclear bombs, and will release seismic waves 
+                equivalent to a 7-8 magnitude earthquake. It will cause continent-wide damage, and the 
+                resulting fires and temperature fluctuations will be devastating. </p>
+              <p>Although you can try to warn people ahead of time, evacuating an entire country is 
+                not easy. You are screwed. </p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although some of the asteroid’s material will be burned away as it falls through Earth’s 
-                  atmosphere, its impact will be big, releasing energy equivalent to 3300 megatons of TNT, 
-                  or 287,000 Hiroshima nuclear bombs. It lands in water, which will reduce the seismic 
-                  effects significantly, but tsunamis will still devastate coastlines for hundreds of 
-                  kilometers. It would likely cause a greenhouse gas effect in the environment, and regional 
-                  ocean life will be destroyed. However, it will not cause a global extinction, and despite 
-                  lingering threats to resources, your society will likely survive.</li>
-                <li>If you are on a coastline with no tsunami precautions, evacuation will likely take too 
-                  long, and you are screwed. If you have early warning systems and high sea walls, you will 
-                  probably survive! Congratulations!</li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Water?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although some of the asteroid’s material will be burned away as it falls through Earth’s 
+                atmosphere, its impact will be big, releasing energy equivalent to 3300 megatons of TNT, 
+                or 287,000 Hiroshima nuclear bombs. It lands in water, which will reduce the seismic 
+                effects significantly, but tsunamis will still devastate coastlines for hundreds of 
+                kilometers. It would likely cause a greenhouse gas effect in the environment, and regional 
+                ocean life will be destroyed. However, it will not cause a global extinction, and despite 
+                lingering threats to resources, your society will likely survive.</p>
+              <p>If you are on a coastline with no tsunami precautions, evacuation will likely take too 
+                long, and you are screwed. If you have early warning systems and high sea walls, you will 
+                probably survive! Congratulations!</p>
             `,
           },
           "2023 TB2": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although most of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 
-                  megatons of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance 
-                  of breaking apart before they reach the ground, but even if it explodes in the air, 
-                  an immense shockwave will flatten trees for kilometers. If it does hit the ground, 
-                  it will cause seismic waves equivalent to a 5-6 magnitude earthquake. There will be 
-                  widespread local destruction and injury.</li>
-                <li>If the impact happens in a dense urban area, property damage will be immense. 
-                  However, with proper infrastructure (public transit, emergency shelters, rapid 
-                  information dissemination), casualties can be minimized. Congratulations!</li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although most of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 
+                megatons of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance 
+                of breaking apart before they reach the ground, but even if it explodes in the air, 
+                an immense shockwave will flatten trees for kilometers. If it does hit the ground, 
+                it will cause seismic waves equivalent to a 5-6 magnitude earthquake. There will be 
+                widespread local destruction and injury.</p>
+              <p>If the impact happens in a dense urban area, property damage will be immense. 
+                However, with proper infrastructure (public transit, emergency shelters, rapid 
+                information dissemination), casualties can be minimized. Congratulations!</p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although most of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 megatons 
-                  of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance of 
-                  breaking apart before they reach the ground, but even if it explodes in the air, an 
-                  immense shockwave will radiate for kilometers. However, it lands in water, which will 
-                  reduce the seismic effects significantly. At this size, there is a low risk of ocean-wide 
-                  tsunamis, but if it hits next to land, the waves generated will likely cause damage to 
-                  the coastline. </li>
-                <li>If you are on a very nearby coastline, you need tsunami precautions (early warning 
-                  system, sea walls, high ground) to minimize damage. However, most coastlines won’t 
-                  even be impacted. Congratulations! </li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Water?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although most of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 megatons 
+                of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance of 
+                breaking apart before they reach the ground, but even if it explodes in the air, an 
+                immense shockwave will radiate for kilometers. However, it lands in water, which will 
+                reduce the seismic effects significantly. At this size, there is a low risk of ocean-wide 
+                tsunamis, but if it hits next to land, the waves generated will likely cause damage to 
+                the coastline. </p>
+              <p>If you are on a very nearby coastline, you need tsunami precautions (early warning 
+                system, sea walls, high ground) to minimize damage. However, most coastlines won’t 
+                even be impacted. Congratulations! </p>
             `,
           },
           "2022 VF1": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although some of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big. It will release energy equivalent to 120 
-                  megatons of TNT, or 8000 Hiroshima nuclear bombs, and will cause seismic waves equivalent 
-                  to a 6-7 magnitude earthquake. The shockwave will cause immense regional destruction for 
-                  many kilometers.</li>
-                <li>If the impact happens in a dense urban area, property damage will be immense, and 
-                  mass casualties are likely. It will be very difficult to evacuate an area larger than 
-                  New York City, but with proper infrastructure (public transit, emergency shelters, 
-                  rapid information dissemination), you have a chance of minimizing casualties. 
-                  Congratulations!</li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although some of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big. It will release energy equivalent to 120 
+                megatons of TNT, or 8000 Hiroshima nuclear bombs, and will cause seismic waves equivalent 
+                to a 6-7 magnitude earthquake. The shockwave will cause immense regional destruction for 
+                many kilometers.</p>
+              <p>If the impact happens in a dense urban area, property damage will be immense, and 
+                mass casualties are likely. It will be very difficult to evacuate an area larger than 
+                New York City, but with proper infrastructure (public transit, emergency shelters, 
+                rapid information dissemination), you have a chance of minimizing casualties. 
+                Congratulations!</p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although some of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 120 megatons 
-                  of TNT, or 8000 Hiroshima nuclear bombs. However, it lands in water, which will reduce 
-                  the seismic effects significantly. At this size, there is a low risk of truly devastating 
-                  ocean-wide tsunamis, but if it hits next to land, the waves generated will cause huge 
-                  damage to the coastline. Local ocean life will also be devastated.</li>
-                <li>If you are on a nearby coastline, you will need tsunami precautions (early warning 
-                  system, sea walls, high ground) to minimize damage. Even with maximum precautions, this 
-                  may not be enough to mitigate the huge waves generated by the meteor. However, most 
-                  coastlines won’t even be impacted. Congratulations! </li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Water?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although some of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 120 megatons 
+                of TNT, or 8000 Hiroshima nuclear bombs. However, it lands in water, which will reduce 
+                the seismic effects significantly. At this size, there is a low risk of truly devastating 
+                ocean-wide tsunamis, but if it hits next to land, the waves generated will cause huge 
+                damage to the coastline. Local ocean life will also be devastated.</p>
+              <p>If you are on a nearby coastline, you will need tsunami precautions (early warning 
+                system, sea walls, high ground) to minimize damage. Even with maximum precautions, this 
+                may not be enough to mitigate the huge waves generated by the meteor. However, most 
+                coastlines won’t even be impacted. Congratulations! </p>
             `,
           },
           "2000 WJ107": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although most of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 24 megatons 
-                  of TNT, or 1600 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
-                  apart before they reach the ground, but even if it explodes in the air, an immense 
-                  shockwave will radiate for kilometers. If it does hit the ground, it will cause 
-                  seismic waves equivalent to a 5-6 magnitude earthquake. There will be widespread local 
-                  destruction and injury.</li>
-                <li>If the impact happens in a dense urban area, property damage will be immense. However, 
-                  with proper infrastructure (public transit, emergency shelters, rapid information 
-                  dissemination), casualties can be minimized. Congratulations!</li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although most of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 24 megatons 
+                of TNT, or 1600 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
+                apart before they reach the ground, but even if it explodes in the air, an immense 
+                shockwave will radiate for kilometers. If it does hit the ground, it will cause 
+                seismic waves equivalent to a 5-6 magnitude earthquake. There will be widespread local 
+                destruction and injury.</p>
+              <p>If the impact happens in a dense urban area, property damage will be immense. However, 
+                with proper infrastructure (public transit, emergency shelters, rapid information 
+                dissemination), casualties can be minimized. Congratulations!</p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although most of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 24 megatons 
-                  of TNT, or 1600 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
-                  apart before they reach the ground, but even if it explodes in the air, an immense 
-                  shockwave will radiate for kilometers. However, it lands in water, which will reduce the 
-                  seismic effects significantly. At this size, there is a low risk of ocean-wide tsunamis, 
-                  but if it hits next to land, the waves generated will likely cause damage to the coastline. </li>
-                <li>If you are on a very nearby coastline, you need tsunami precautions (early warning 
-                  system, sea walls, high ground) to minimize damage. However, most coastlines won’t even 
-                  be impacted. Congratulations! </li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Water?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although most of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 24 megatons 
+                of TNT, or 1600 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
+                apart before they reach the ground, but even if it explodes in the air, an immense 
+                shockwave will radiate for kilometers. However, it lands in water, which will reduce the 
+                seismic effects significantly. At this size, there is a low risk of ocean-wide tsunamis, 
+                but if it hits next to land, the waves generated will likely cause damage to the coastline. </p>
+              <p>If you are on a very nearby coastline, you need tsunami precautions (early warning 
+                system, sea walls, high ground) to minimize damage. However, most coastlines won’t even 
+                be impacted. Congratulations! </p>
             `,
           },
           "2025 RM1": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although most of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 megatons 
-                  of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
-                  apart before they reach the ground, but even if it explodes in the air, an immense 
-                  shockwave will flatten trees for kilometers. If it does hit the ground, it will cause 
-                  seismic waves equivalent to a 5-6 magnitude earthquake. There will be widespread local 
-                  destruction and injury.</li>
-                <li>If the impact happens in a dense urban area, property damage will be immense. 
-                  However, with proper infrastructure (public transit, emergency shelters, rapid 
-                  information dissemination), casualties can be minimized. Congratulations!</li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although most of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 megatons 
+                of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
+                apart before they reach the ground, but even if it explodes in the air, an immense 
+                shockwave will flatten trees for kilometers. If it does hit the ground, it will cause 
+                seismic waves equivalent to a 5-6 magnitude earthquake. There will be widespread local 
+                destruction and injury.</p>
+              <p>If the impact happens in a dense urban area, property damage will be immense. 
+                However, with proper infrastructure (public transit, emergency shelters, rapid 
+                information dissemination), casualties can be minimized. Congratulations!</p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Although most of the asteroid’s material will be burned away as it falls through 
-                  Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 megatons 
-                  of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
-                  apart before they reach the ground, but even if it explodes in the air, an immense 
-                  shockwave will flatten trees for kilometers. If it does hit the ground, it will cause 
-                  seismic waves equivalent to a 5-6 magnitude earthquake. There will be widespread local 
-                  destruction and injury.</li>
-                <li>If the impact happens in a dense urban area, property damage will be immense. 
-                  However, with proper infrastructure (public transit, emergency shelters, rapid 
-                  information dissemination), casualties can be minimized. Congratulations!</li>
-              </ul>
+              <h3>What Would Happen if {name} Hit Water?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Although most of the asteroid’s material will be burned away as it falls through 
+                Earth’s atmosphere, its impact will be big, releasing energy equivalent to 5.3 megatons 
+                of TNT, or 353 Hiroshima nuclear bombs. Meteors this size have a good chance of breaking 
+                apart before they reach the ground, but even if it explodes in the air, an immense 
+                shockwave will flatten trees for kilometers. If it does hit the ground, it will cause 
+                seismic waves equivalent to a 5-6 magnitude earthquake. There will be widespread local 
+                destruction and injury.</p>
+              <p>If the impact happens in a dense urban area, property damage will be immense. 
+                However, with proper infrastructure (public transit, emergency shelters, rapid 
+                information dissemination), casualties can be minimized. Congratulations!</p>
             `,
           },
           "2024 RS16": {
             land: `
-              <h3>LAND</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <ul>
-                <li>Your object is 0.005 kilometers in diameter. According to NASA, tens of millions of 
-                  Near Earth Objects (NEOs) exist with a size less than 50 meters. We have found less than 
-                  1% of these objects. At this size, your asteroid is very likely to break up as it falls 
-                  through Earth’s atmosphere, causing no significant damage on the ground. No mitigation needed! </li>
-              </ul>
+             <h3>What Would Happen if {name} Hit Land?</h3>
+             <p><strong>Size: {size} m across</strong></p>
+             <p>{lat}°, {lon}°</p>
+             <p>Your object is 0.005 kilometers in diameter. According to NASA, tens of millions of 
+                Near Earth Objects (NEOs) exist with a size less than 50 meters. We have found less than 
+                1% of these objects. At this size, your asteroid is very likely to break up as it falls 
+                through Earth’s atmosphere, causing no significant damage on the ground. No mitigation needed! </p>
             `,
             water: `
-              <h3>OCEAN</h3>
-              <p><strong>{name}</strong> ({size} m) at <strong>{lat}°, {lon}°</strong></p>
-              <li>Your object is 0.005 kilometers in diameter. According to NASA, tens of millions of 
+              <h3>What Would Happen if {name} Hit Land?</h3>
+              <p><strong>Size: {size} m across</strong></p>
+              <p>{lat}°, {lon}°</p>
+              <p>Your object is 0.005 kilometers in diameter. According to NASA, tens of millions of 
                   Near Earth Objects (NEOs) exist with a size less than 50 meters. We have found less than 
                   1% of these objects. At this size, your asteroid is very likely to break up as it falls 
-                  through Earth’s atmosphere, causing no significant damage on the ground. No mitigation needed! </li>
+                  through Earth’s atmosphere, causing no significant damage on the ground. No mitigation needed! </p>
             `,
           }
         };
@@ -1025,7 +1135,7 @@
 
         // === Water/land via CDN masks (robust) ====================================
         const RES = "110m";        // "110m" fast; switch to "50m" for finer coasts later
-        const OCEAN_ONLY = false;  // true => oceans only (lakes count as land)
+        const OCEAN_ONLY = true;  // true => oceans only (lakes count as land)
 
         let landMask = null;       // FeatureCollection of Polygon/MultiPolygon
         let lakesMask = null;      // FeatureCollection (optional)
@@ -1131,6 +1241,7 @@
         let impactCrossEntity = null; // NEW crosshair marker
         let cityLabelEntity = null;
         let cityViewPayload = null;
+
 
         function clearEpicenterSpheres() {
           epicenterSpheres.forEach((e) => viewer.entities.remove(e));
@@ -1308,6 +1419,41 @@
           }
           return nearest;
         }
+        function defaultRadiusFromProfile(profile) {
+          if (!profile) return null;
+          const sizeTerm = (profile.sizeMeters || 0) * 500.0;
+          const energyTerm = (profile.joules || 0) * (JOULE_RADIUS_SCALE || 1e-9);
+          const r = Math.max(sizeTerm, energyTerm);
+          return Number.isFinite(r) && r > 0 ? r : null;
+        }
+
+        function recomputeImpactRadiusForCurrentMeteor() {
+          impactRadiusMeters = COAST_GLOW_RADIUS_M;
+          return impactRadiusMeters;
+        }
+
+
+        async function refreshCoastGlowIfReady() {
+          // Only draw if impact is over ocean (not lakes), per your mask logic
+          if (!lastImpactIsWater) {
+            if (window.__CoastGlow__) window.__CoastGlow__.clear(viewer);
+            return;
+          }
+
+          if (!Number.isFinite(METEOR.endLon) || !Number.isFinite(METEOR.endLat)) return;
+
+          // Always use the fixed radius
+          impactRadiusMeters = COAST_GLOW_RADIUS_M;
+
+          await window.__CoastGlow__.drawGlowInCesium(
+            viewer,
+            [METEOR.endLon, METEOR.endLat],
+            impactRadiusMeters,
+            Cesium.Color.CORNFLOWERBLUE // water color
+          );
+        }
+
+
 
         async function startMeteorRun() {
           if (!launchButton) { console.error("Simulate button is missing."); return; }
@@ -1326,6 +1472,7 @@
           if (activeTrail) { viewer.scene.primitives.remove(activeTrail); activeTrail = null; }
           if (trajectoryEntity) { viewer.entities.remove(trajectoryEntity); trajectoryEntity = null; } // clear previous baked path ONLY when a new sim starts
           trajectoryPositions = [];
+          window.__CoastGlow__.clear(viewer);
 
           launchButton.disabled = true;
           launchButton.classList.remove('btn-pulse');
@@ -1482,6 +1629,7 @@
             activateTimelineButton(timelineMessage);
             // Ensure spheres are present at the epicenter
             createEpicenterSpheres();
+            refreshCoastGlowIfReady();
             const nearestCity = findNearestMajorCity(METEOR.endLat, METEOR.endLon);
             let labelMessage = 'Inspect impact site';
             if (nearestCity && nearestCity.distanceKm <= NEAREST_CITY_LABEL_THRESHOLD_KM) {
@@ -1490,6 +1638,7 @@
             } else {
               clearCityLabel();
             }
+
             showImpactBlurb();
 
             if (!lastImpactIsWater) {
